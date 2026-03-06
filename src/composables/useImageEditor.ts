@@ -138,6 +138,27 @@ export function useImageEditor() {
     }
   }
 
+  const setRotation = (angle: number) => {
+    if (fabricImage.value) {
+      fabricImage.value.rotate(angle)
+      canvas.value?.renderAll()
+    }
+  }
+
+  const flipHorizontal = () => {
+    if (fabricImage.value) {
+      fabricImage.value.set('flipX', !fabricImage.value.flipX)
+      canvas.value?.renderAll()
+    }
+  }
+
+  const flipVertical = () => {
+    if (fabricImage.value) {
+      fabricImage.value.set('flipY', !fabricImage.value.flipY)
+      canvas.value?.renderAll()
+    }
+  }
+
   const applyFilters = () => {
     if (!fabricImage.value) return
 
@@ -370,6 +391,9 @@ export function useImageEditor() {
     initCanvas,
     loadImage,
     rotate,
+    setRotation,
+    flipHorizontal,
+    flipVertical,
     setBrightness,
     setContrast,
     setSaturation,
