@@ -381,6 +381,21 @@ export function useImageEditor() {
     }
   }
 
+  const getCurrentFileSize = async (): Promise<number | null> => {
+    if (!canvas.value) return null
+    
+    return new Promise((resolve) => {
+      canvas.value?.getElement().toBlob((blob) => {
+        if (blob) {
+          // Return size in KB
+          resolve(blob.size / 1024)
+        } else {
+          resolve(null)
+        }
+      }, 'image/png', 1)
+    })
+  }
+
   return {
     canvas,
     fabricImage,
@@ -407,6 +422,7 @@ export function useImageEditor() {
     exportImage,
     downloadImage,
     reset,
-    getCurrentDimensions
+    getCurrentDimensions,
+    getCurrentFileSize
   }
 }
