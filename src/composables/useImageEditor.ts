@@ -13,11 +13,20 @@ export interface ImageDimensions {
   height: number
 }
 
+export interface CropArea {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export function useImageEditor() {
   const canvas = shallowRef<Canvas | null>(null)
   const fabricImage = shallowRef<FabricImage | null>(null)
   const originalImage = shallowRef<HTMLImageElement | null>(null)
   const imageLoaded = ref(false)
+  const cropMode = ref(false)
+  const cropArea = ref<CropArea>({ x: 0, y: 0, width: 0, height: 0 })
   const currentFilters = ref<ImageFilters>({
     brightness: 0,
     contrast: 0,
@@ -32,7 +41,6 @@ export function useImageEditor() {
       width: 800,
       height: 600
     })
-    console.log('Canvas initialized:', canvas.value)
   }
 
   const loadImage = async (file: File): Promise<void> => {
@@ -53,9 +61,6 @@ export function useImageEditor() {
           // Load image into Fabric canvas
           const fabricImg = await FabricImage.fromURL(dataUrl)
           
-          console.log('FabricImage created:', fabricImg)
-          console.log('Image dimensions:', fabricImg.width, fabricImg.height)
-          
           if (canvas.value) {
             canvas.value.clear()
             
@@ -71,21 +76,34 @@ export function useImageEditor() {
               1
             )
             
-            console.log('Scale factor:', scale)
+            // Set scale first
+            fabricImg.set({
+              scaleX: scale,
+              scaleY: scale
+            })
             
+            // Calculate actual dimensions after scaling
             const scaledWidth = imgWidth * scale
             const scaledHeight = imgHeight * scale
             
-            fabricImg.scale(scale)
+            // Center the image on canvas
+            // Using top-left positioning (Fabric.js default origin)
             fabricImg.set({
               left: (maxWidth - scaledWidth) / 2,
               top: (maxHeight - scaledHeight) / 2,
-              selectable: true,
-              hasControls: true
+              originX: 'left',
+              originY: 'top',
+              selectable: false,
+              hasControls: false,
+              lockMovementX: true,
+              lockMovementY: true,
+              lockScalingX: true,
+              lockScalingY: true,
+              lockRotation: true
             })
             
             canvas.value.add(fabricImg)
-            canvas.value.setActiveObject(fabricImg)
+            canvas.value.selection = false
             canvas.value.renderAll()
             
             fabricImage.value = fabricImg
@@ -98,8 +116,6 @@ export function useImageEditor() {
               saturation: 0,
               grayscale: false
             }
-            
-            console.log('Image loaded successfully', canvas.value)
           }
           
           resolve()
@@ -174,38 +190,67 @@ export function useImageEditor() {
     applyFilters()
   }
 
-  const crop = () => {
-    if (!fabricImage.value || !canvas.value) return
+  const enterCropMode = () => {
+    cropMode.value = true
+    if (fabricImage.value) {
+      const imgBounds = fabricImage.value.getBoundingRect()
+      // Initialize crop area to 80% of image in the center
+      const cropWidth = imgBounds.width * 0.8
+      const cropHeight = imgBounds.height * 0.8
+      cropArea.value = {
+        x: imgBounds.left + (imgBounds.width - cropWidth) / 2,
+        y: imgBounds.top + (imgBounds.height - cropHeight) / 2,
+        width: cropWidth,
+        height: cropHeight
+      }
+    }
+  }
 
-    const obj = fabricImage.value
-    const cropX = (obj.cropX || 0)
-    const cropY = (obj.cropY || 0)
-    const cropWidth = obj.width * (obj.scaleX || 1)
-    const cropHeight = obj.height * (obj.scaleY || 1)
+  const exitCropMode = () => {
+    cropMode.value = false
+  }
 
-    // Create a new canvas for cropping
+  const setCropArea = (area: CropArea) => {
+    cropArea.value = area
+  }
+
+  const applyCrop = async () => {
+    if (!fabricImage.value || !canvas.value || !cropArea.value) return
+
+    const img = fabricImage.value
+    const imgBounds = img.getBoundingRect()
+    
+    // Calculate crop coordinates relative to the image
+    const relX = (cropArea.value.x - imgBounds.left) / (img.scaleX || 1)
+    const relY = (cropArea.value.y - imgBounds.top) / (img.scaleY || 1)
+    const relWidth = cropArea.value.width / (img.scaleX || 1)
+    const relHeight = cropArea.value.height / (img.scaleY || 1)
+
+    // Create a temporary canvas for cropping
     const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = cropWidth
-    tempCanvas.height = cropHeight
+    tempCanvas.width = relWidth
+    tempCanvas.height = relHeight
     const ctx = tempCanvas.getContext('2d')
 
-    if (ctx && obj._element) {
+    if (ctx && img._element) {
       ctx.drawImage(
-        obj._element as CanvasImageSource,
-        cropX,
-        cropY,
-        cropWidth,
-        cropHeight,
+        img._element as CanvasImageSource,
+        relX,
+        relY,
+        relWidth,
+        relHeight,
         0,
         0,
-        cropWidth,
-        cropHeight
+        relWidth,
+        relHeight
       )
 
+      // Convert to blob and reload
       tempCanvas.toBlob(async (blob) => {
         if (blob) {
           const file = new File([blob], 'cropped.png', { type: 'image/png' })
           await loadImage(file)
+          exitCropMode()
         }
       })
     }
@@ -320,6 +365,8 @@ export function useImageEditor() {
     fabricImage,
     imageLoaded,
     currentFilters,
+    cropMode,
+    cropArea,
     initCanvas,
     loadImage,
     rotate,
@@ -327,7 +374,10 @@ export function useImageEditor() {
     setContrast,
     setSaturation,
     toggleGrayscale,
-    crop,
+    enterCropMode,
+    exitCropMode,
+    setCropArea,
+    applyCrop,
     resize,
     resizeToFileSize,
     exportImage,

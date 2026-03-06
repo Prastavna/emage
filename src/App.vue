@@ -10,9 +10,14 @@ import ExportControls from './components/ExportControls.vue'
 
 const selectedFile = ref<File | null>(null)
 const editorRef = ref<InstanceType<typeof ImageEditor> | null>(null)
+const cropAspectRatio = ref<number | null>(null)
 
 const handleImageSelected = (file: File) => {
   selectedFile.value = file
+}
+
+const handleAspectRatioChange = (ratio: number | null) => {
+  cropAspectRatio.value = ratio
 }
 </script>
 
@@ -71,6 +76,7 @@ const handleImageSelected = (file: File) => {
           <CropControls
             v-if="editorRef?.editor"
             :editor="editorRef.editor"
+            @aspect-ratio-change="handleAspectRatioChange"
           />
 
           <ResizeControls
@@ -91,6 +97,7 @@ const handleImageSelected = (file: File) => {
               <ImageEditor
                 ref="editorRef"
                 :file="selectedFile"
+                :crop-aspect-ratio="cropAspectRatio"
               />
             </div>
           </div>
