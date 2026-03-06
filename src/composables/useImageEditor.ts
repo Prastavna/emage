@@ -278,7 +278,7 @@ export function useImageEditor() {
   }
 
   const resize = async (width: number, height: number, maintainAspect: boolean = true) => {
-    if (!fabricImage.value) return
+    if (!fabricImage.value || !fabricImage.value._element) return
 
     let newWidth = width
     let newHeight = height
@@ -299,45 +299,107 @@ export function useImageEditor() {
       }
     }
 
-    const scaleX = newWidth / fabricImage.value.width
-    const scaleY = newHeight / fabricImage.value.height
+    // Create a temporary canvas for resizing with actual pixel data
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = Math.round(newWidth)
+    tempCanvas.height = Math.round(newHeight)
+    const ctx = tempCanvas.getContext('2d')
 
-    fabricImage.value.scale(maintainAspect ? scaleX : scaleX)
-    if (!maintainAspect) {
-      fabricImage.value.scaleY = scaleY
+    if (ctx) {
+      // Draw the actual image (not the canvas) at the new size
+      ctx.drawImage(
+        fabricImage.value._element as CanvasImageSource,
+        0,
+        0,
+        tempCanvas.width,
+        tempCanvas.height
+      )
+
+      // Convert to blob and reload to actually change the image data
+      const blob = await new Promise<Blob | null>(resolve => {
+        tempCanvas.toBlob(resolve, 'image/png', 1)
+      })
+
+      if (blob) {
+        const file = new File([blob], 'resized.png', { type: 'image/png' })
+        await loadImage(file)
+      }
     }
-    
-    canvas.value?.renderAll()
   }
 
   const resizeToFileSize = async (targetKB: number, format: string = 'image/jpeg'): Promise<boolean> => {
-    if (!canvas.value) return false
+    if (!canvas.value || !fabricImage.value) return false
 
-    let quality = 0.9
+    let quality = 0.92
+    let scaleFactor = 1.0
     let blob: Blob | null = null
+    let currentDims = getCurrentDimensions()
     
-    // Binary search for the right quality
-    for (let i = 0; i < 10; i++) {
+    if (!currentDims) return false
+    
+    // Try compression first, then dimension reduction if needed
+    for (let attempt = 0; attempt < 15; attempt++) {
+      // Create a temp canvas at current scale
+      const tempCanvas = document.createElement('canvas')
+      const targetWidth = Math.round(currentDims.width * scaleFactor)
+      const targetHeight = Math.round(currentDims.height * scaleFactor)
+      
+      tempCanvas.width = targetWidth
+      tempCanvas.height = targetHeight
+      const ctx = tempCanvas.getContext('2d')
+      
+      if (!ctx) return false
+      
+      // Draw scaled image
+      ctx.drawImage(
+        canvas.value.getElement(),
+        0,
+        0,
+        targetWidth,
+        targetHeight
+      )
+      
       blob = await new Promise<Blob | null>(resolve => {
-        canvas.value?.getElement().toBlob(resolve, format, quality)
+        tempCanvas.toBlob(resolve, format, quality)
       })
       
       if (!blob) return false
       
       const sizeKB = blob.size / 1024
       
-      if (Math.abs(sizeKB - targetKB) < targetKB * 0.05) {
+      // Within 5% tolerance is acceptable
+      if (Math.abs(sizeKB - targetKB) < targetKB * 0.05 || sizeKB <= targetKB) {
         break
       }
       
       if (sizeKB > targetKB) {
-        quality *= 0.9
+        // Try reducing quality first
+        if (quality > 0.3) {
+          quality *= 0.85
+        } else {
+          // If quality is already low, reduce dimensions
+          scaleFactor *= 0.92
+          quality = 0.85 // Reset quality when changing dimensions
+        }
       } else {
-        quality = Math.min(1, quality * 1.1)
+        // Size is too small, increase quality or scale
+        if (scaleFactor < 1.0 && quality > 0.8) {
+          scaleFactor = Math.min(1.0, scaleFactor * 1.05)
+        } else {
+          quality = Math.min(0.95, quality * 1.05)
+        }
       }
     }
     
-    return true
+    // Reload the compressed/resized image back into the canvas
+    if (blob) {
+      const extension = format.split('/')[1]
+      const file = new File([blob], `compressed.${extension}`, { type: format })
+      await loadImage(file)
+      return true
+    }
+    
+    return false
   }
 
   const exportImage = async (format: string = 'image/png', quality: number = 1): Promise<Blob | null> => {
@@ -375,25 +437,120 @@ export function useImageEditor() {
   const getCurrentDimensions = (): ImageDimensions | null => {
     if (!fabricImage.value) return null
     
+    // Return the actual image dimensions (not the scaled display dimensions)
     return {
-      width: Math.round(fabricImage.value.width * (fabricImage.value.scaleX || 1)),
-      height: Math.round(fabricImage.value.height * (fabricImage.value.scaleY || 1))
+      width: Math.round(fabricImage.value.width),
+      height: Math.round(fabricImage.value.height)
     }
   }
 
-  const getCurrentFileSize = async (): Promise<number | null> => {
-    if (!canvas.value) return null
+  const getCurrentFileSize = async (format: string = 'image/png', quality: number = 1): Promise<number | null> => {
+    if (!canvas.value || !fabricImage.value) return null
+    
+    // Create a temporary canvas with just the image dimensions (not the canvas display size)
+    const tempCanvas = document.createElement('canvas')
+    const dims = getCurrentDimensions()
+    if (!dims) return null
+    
+    tempCanvas.width = dims.width
+    tempCanvas.height = dims.height
+    const ctx = tempCanvas.getContext('2d')
+    
+    if (!ctx || !fabricImage.value._element) return null
+    
+    // Draw the actual image at its actual size
+    ctx.drawImage(
+      fabricImage.value._element as CanvasImageSource,
+      0,
+      0,
+      dims.width,
+      dims.height
+    )
     
     return new Promise((resolve) => {
-      canvas.value?.getElement().toBlob((blob) => {
+      tempCanvas.toBlob((blob) => {
         if (blob) {
           // Return size in KB
           resolve(blob.size / 1024)
         } else {
           resolve(null)
         }
-      }, 'image/png', 1)
+      }, format, quality)
     })
+  }
+
+  const estimateFileSizeForDimensions = async (width: number, height: number, format: string = 'image/png', quality: number = 1): Promise<number | null> => {
+    if (!fabricImage.value || !fabricImage.value._element) return null
+    
+    // Create a temporary canvas at target dimensions
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = Math.round(width)
+    tempCanvas.height = Math.round(height)
+    const ctx = tempCanvas.getContext('2d')
+    
+    if (!ctx) return null
+    
+    // Draw the actual image (not the canvas) scaled to target dimensions
+    ctx.drawImage(
+      fabricImage.value._element as CanvasImageSource,
+      0,
+      0,
+      tempCanvas.width,
+      tempCanvas.height
+    )
+    
+    return new Promise((resolve) => {
+      tempCanvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob.size / 1024)
+        } else {
+          resolve(null)
+        }
+      }, format, quality)
+    })
+  }
+
+  const estimateDimensionsForFileSize = async (targetKB: number, format: string = 'image/jpeg'): Promise<ImageDimensions | null> => {
+    if (!fabricImage.value) return null
+    
+    const currentDims = getCurrentDimensions()
+    if (!currentDims) return null
+    
+    // Start with current dimensions and scale down
+    let scaleFactor = 1.0
+    let quality = 0.85
+    
+    // Quick estimation with binary search on scale
+    let low = 0.1
+    let high = 1.0
+    let bestScale = 1.0
+    
+    for (let i = 0; i < 8; i++) {
+      scaleFactor = (low + high) / 2
+      const testWidth = Math.round(currentDims.width * scaleFactor)
+      const testHeight = Math.round(currentDims.height * scaleFactor)
+      
+      const estimatedSize = await estimateFileSizeForDimensions(testWidth, testHeight, format, quality)
+      
+      if (!estimatedSize) break
+      
+      if (Math.abs(estimatedSize - targetKB) < targetKB * 0.1) {
+        bestScale = scaleFactor
+        break
+      }
+      
+      if (estimatedSize > targetKB) {
+        high = scaleFactor
+      } else {
+        low = scaleFactor
+        bestScale = scaleFactor
+      }
+    }
+    
+    return {
+      width: Math.round(currentDims.width * bestScale),
+      height: Math.round(currentDims.height * bestScale)
+    }
   }
 
   return {
@@ -423,6 +580,8 @@ export function useImageEditor() {
     downloadImage,
     reset,
     getCurrentDimensions,
-    getCurrentFileSize
+    getCurrentFileSize,
+    estimateFileSizeForDimensions,
+    estimateDimensionsForFileSize
   }
 }
