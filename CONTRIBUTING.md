@@ -422,8 +422,8 @@ All submissions require review before merging:
 
 Need help? Here's how to reach us:
 
-- **Questions**: [GitHub Discussions](https://github.com/yourusername/emage/discussions)
-- **Bugs**: [GitHub Issues](https://github.com/yourusername/emage/issues)
+- **Questions**: [GitHub Discussions](https://github.com/Prastavna/emage/discussions)
+- **Bugs**: [GitHub Issues](https://github.com/Prastavna/emage/issues)
 - **Chat**: [Discord Server](#) (if applicable)
 
 ## 📚 Resources

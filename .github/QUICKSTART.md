@@ -15,20 +15,20 @@ That's it! No installation required.
 
 **Option 1: Docker (Easiest)**
 ```bash
-docker run -d -p 3000:80 ghcr.io/yourusername/emage:latest
+docker run -d -p 3000:80 ghcr.io/Prastavna/emage:latest
 ```
 Visit `http://localhost:3000`
 
 **Option 2: Docker Compose**
 ```bash
-git clone https://github.com/yourusername/emage.git
+git clone https://github.com/Prastavna/emage.git
 cd emage
 docker-compose up -d
 ```
 
 **Option 3: Build from Source**
 ```bash
-git clone https://github.com/yourusername/emage.git
+git clone https://github.com/Prastavna/emage.git
 cd emage
 bun install
 bun run build
@@ -41,7 +41,7 @@ bun run build
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/emage.git
+git clone https://github.com/Prastavna/emage.git
 cd emage
 
 # Install dependencies
@@ -142,9 +142,9 @@ emage/
 
 - 📖 [Full Documentation](../README.md)
 - 🤝 [Contributing Guide](../CONTRIBUTING.md)
-- 💬 [GitHub Discussions](https://github.com/yourusername/emage/discussions)
-- 🐛 [Report a Bug](https://github.com/yourusername/emage/issues/new?template=bug_report.md)
-- ✨ [Request a Feature](https://github.com/yourusername/emage/issues/new?template=feature_request.md)
+- 💬 [GitHub Discussions](https://github.com/Prastavna/emage/discussions)
+- 🐛 [Report a Bug](https://github.com/Prastavna/emage/issues/new?template=bug_report.md)
+- ✨ [Request a Feature](https://github.com/Prastavna/emage/issues/new?template=feature_request.md)
 
 ## Tips
 

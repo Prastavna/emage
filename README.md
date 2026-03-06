@@ -101,7 +101,7 @@ Perfect for quick image edits without uploading to third-party services!
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/emage.git
+   git clone https://github.com/Prastavna/emage.git
    cd emage
    ```
 
@@ -273,8 +273,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 Found a bug or have a feature idea?
 
-- **Bug Reports**: [Open an issue](https://github.com/yourusername/emage/issues/new?template=bug_report.md)
-- **Feature Requests**: [Open an issue](https://github.com/yourusername/emage/issues/new?template=feature_request.md)
+- **Bug Reports**: [Open an issue](https://github.com/Prastavna/emage/issues/new?template=bug_report.md)
+- **Feature Requests**: [Open an issue](https://github.com/Prastavna/emage/issues/new?template=feature_request.md)
 
 ## 📝 Development
 
@@ -319,9 +319,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-- **Repository**: [GitHub](https://github.com/yourusername/emage)
-- **Issues**: [Bug Tracker](https://github.com/yourusername/emage/issues)
-- **Discussions**: [Community Forum](https://github.com/yourusername/emage/discussions)
+- **Repository**: [GitHub](https://github.com/Prastavna/emage)
+- **Issues**: [Bug Tracker](https://github.com/Prastavna/emage/issues)
+- **Discussions**: [Community Forum](https://github.com/Prastavna/emage/discussions)
 
 ---
 

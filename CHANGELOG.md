@@ -70,4 +70,4 @@ When releasing a new version, follow this format:
 
 ---
 
-[Unreleased]: https://github.com/yourusername/emage/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Prastavna/emage/compare/v1.0.0...HEAD
