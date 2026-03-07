@@ -8,6 +8,12 @@ export interface ImageFilters {
   grayscale: boolean
 }
 
+export interface BorderSettings {
+  width: number
+  color: string
+  radius: number
+}
+
 export interface ImageDimensions {
   width: number
   height: number
@@ -33,6 +39,8 @@ export function useImageEditor() {
     saturation: 0,
     grayscale: false
   })
+  
+  const currentBorder = ref<BorderSettings | null>(null)
   
   // Hidden canvas for maintaining original image quality
   const hiddenCanvas = ref<HTMLCanvasElement | null>(null)
@@ -399,6 +407,196 @@ export function useImageEditor() {
     applyFilters()
   }
 
+  const applyBorder = (width: number, color: string, radius: number = 0, borderType: string = 'solid') => {
+    if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
+
+    // First, reconstruct the hidden canvas to remove any existing border
+    reconstructHiddenCanvas()
+
+    currentBorder.value = { width, color, radius }
+
+    // Get the current hidden canvas (which now has no border, just rotation + filters)
+    const sourceCanvas = hiddenCanvas.value
+    
+    // Create a temporary canvas for the bordered image
+    const tempCanvas = document.createElement('canvas')
+    const borderWidth2x = width * 2
+    tempCanvas.width = sourceCanvas.width + borderWidth2x
+    tempCanvas.height = sourceCanvas.height + borderWidth2x
+    const ctx = tempCanvas.getContext('2d')
+
+    if (!ctx) return
+
+    // Apply different border types
+    ctx.fillStyle = color
+    
+    if (borderType === 'dashed') {
+      // Draw solid background first
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
+      
+      // Draw inner rectangle to create dashed effect
+      ctx.clearRect(width, width, sourceCanvas.width, sourceCanvas.height)
+      
+      // Draw dashed border
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.setLineDash([15, 10])
+      ctx.strokeRect(width / 2, width / 2, sourceCanvas.width + width, sourceCanvas.height + width)
+      ctx.setLineDash([])
+    } else if (borderType === 'dotted') {
+      // Draw solid background first
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
+      
+      // Draw inner rectangle to create dotted effect
+      ctx.clearRect(width, width, sourceCanvas.width, sourceCanvas.height)
+      
+      // Draw dotted border
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.setLineDash([5, 10])
+      ctx.strokeRect(width / 2, width / 2, sourceCanvas.width + width, sourceCanvas.height + width)
+      ctx.setLineDash([])
+    } else if (borderType === 'double') {
+      // Draw outer border
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
+      
+      // Clear middle area for double border effect
+      const innerGap = Math.max(2, width / 3)
+      ctx.clearRect(innerGap, innerGap, tempCanvas.width - innerGap * 2, tempCanvas.height - innerGap * 2)
+      
+      // Draw inner border
+      const innerBorder = width - innerGap * 2
+      if (innerBorder > 0) {
+        ctx.fillRect(innerGap, innerGap, tempCanvas.width - innerGap * 2, tempCanvas.height - innerGap * 2)
+      }
+      
+      // Clear center for image
+      ctx.clearRect(width, width, sourceCanvas.width, sourceCanvas.height)
+    } else if (radius > 0) {
+      // Rounded border
+      ctx.beginPath()
+      const x = 0
+      const y = 0
+      const w = tempCanvas.width
+      const h = tempCanvas.height
+      const r = radius
+      
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y)
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+      ctx.lineTo(x + w, y + h - r)
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+      ctx.lineTo(x + r, y + h)
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+      ctx.lineTo(x, y + r)
+      ctx.quadraticCurveTo(x, y, x + r, y)
+      ctx.closePath()
+      ctx.fill()
+    } else {
+      // Solid rectangle
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
+    }
+
+    // Draw the image on top with border offset
+    if (radius > 0 && borderType !== 'dashed' && borderType !== 'dotted' && borderType !== 'double') {
+      // Clip to rounded rectangle for the image
+      ctx.save()
+      ctx.beginPath()
+      const x = width
+      const y = width
+      const w = sourceCanvas.width
+      const h = sourceCanvas.height
+      const r = Math.max(0, radius - width)
+      
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y)
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+      ctx.lineTo(x + w, y + h - r)
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+      ctx.lineTo(x + r, y + h)
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+      ctx.lineTo(x, y + r)
+      ctx.quadraticCurveTo(x, y, x + r, y)
+      ctx.closePath()
+      ctx.clip()
+      ctx.drawImage(sourceCanvas, width, width)
+      ctx.restore()
+    } else {
+      ctx.drawImage(sourceCanvas, width, width)
+    }
+
+    // Update hidden canvas with bordered image
+    hiddenCanvas.value.width = tempCanvas.width
+    hiddenCanvas.value.height = tempCanvas.height
+    hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+    
+    if (hiddenContext.value) {
+      hiddenContext.value.drawImage(tempCanvas, 0, 0)
+    }
+
+    // Update the preview canvas
+    updatePreviewFromHiddenCanvas()
+  }
+
+  const removeBorder = () => {
+    currentBorder.value = null
+    // Reconstruct from original to remove border
+    reconstructHiddenCanvas()
+    updatePreviewFromHiddenCanvas()
+  }
+
+  const updatePreviewFromHiddenCanvas = async () => {
+    if (!hiddenCanvas.value || !canvas.value) return
+
+    // Convert hidden canvas to data URL and reload into preview
+    const dataUrl = hiddenCanvas.value.toDataURL('image/png')
+    const fabricImg = await FabricImage.fromURL(dataUrl)
+
+    if (canvas.value) {
+      // Clear existing image
+      canvas.value.clear()
+
+      // Scale image to fit canvas while maintaining aspect ratio
+      const maxWidth = 800
+      const maxHeight = 600
+      const imgWidth = fabricImg.width
+      const imgHeight = fabricImg.height
+
+      const scale = Math.min(
+        maxWidth / imgWidth,
+        maxHeight / imgHeight,
+        1
+      )
+
+      fabricImg.set({
+        scaleX: scale,
+        scaleY: scale
+      })
+
+      const scaledWidth = imgWidth * scale
+      const scaledHeight = imgHeight * scale
+
+      fabricImg.set({
+        left: (maxWidth - scaledWidth) / 2,
+        top: (maxHeight - scaledHeight) / 2,
+        originX: 'left',
+        originY: 'top',
+        selectable: false,
+        hasControls: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        lockRotation: true
+      })
+
+      canvas.value.add(fabricImg)
+      canvas.value.renderAll()
+
+      fabricImage.value = fabricImg
+    }
+  }
+
   const enterCropMode = () => {
     cropMode.value = true
     if (fabricImage.value) {
@@ -757,6 +955,8 @@ export function useImageEditor() {
     setContrast,
     setSaturation,
     toggleGrayscale,
+    applyBorder,
+    removeBorder,
     enterCropMode,
     exitCropMode,
     setCropArea,

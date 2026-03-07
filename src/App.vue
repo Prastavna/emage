@@ -6,6 +6,7 @@ import RotationControls from './components/RotationControls.vue'
 import CropControls from './components/CropControls.vue'
 import ResizeControls from './components/ResizeControls.vue'
 import FilterControls from './components/FilterControls.vue'
+import BorderControls from './components/BorderControls.vue'
 import ExportControls from './components/ExportControls.vue'
 
 const selectedFile = ref<File | null>(null)
@@ -74,6 +75,11 @@ const handleAspectRatioChange = (ratio: number | null) => {
           />
 
           <FilterControls
+            v-if="editorRef?.editor"
+            :editor="editorRef.editor"
+          />
+
+          <BorderControls
             v-if="editorRef?.editor"
             :editor="editorRef.editor"
           />
