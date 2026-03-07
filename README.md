@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="public/emage.svg" alt="LeetCode Interview Questions" width="140" />
   <h1>emage</h1>
   <p><strong>A powerful, privacy-first image manipulation tool that runs entirely in your browser</strong></p>
   
