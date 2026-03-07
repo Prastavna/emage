@@ -11,17 +11,36 @@ const contrast = ref(0)
 const saturation = ref(0)
 const grayscale = ref(false)
 
-// Watch for changes and apply filters
+let brightnessTimeout: number | null = null
+let contrastTimeout: number | null = null
+let saturationTimeout: number | null = null
+
+// Watch for changes and apply filters with debouncing
 watch(brightness, (value) => {
-  props.editor.setBrightness(value)
+  if (brightnessTimeout) {
+    clearTimeout(brightnessTimeout)
+  }
+  brightnessTimeout = window.setTimeout(() => {
+    props.editor.setBrightness(value)
+  }, 300)
 })
 
 watch(contrast, (value) => {
-  props.editor.setContrast(value)
+  if (contrastTimeout) {
+    clearTimeout(contrastTimeout)
+  }
+  contrastTimeout = window.setTimeout(() => {
+    props.editor.setContrast(value)
+  }, 300)
 })
 
 watch(saturation, (value) => {
-  props.editor.setSaturation(value)
+  if (saturationTimeout) {
+    clearTimeout(saturationTimeout)
+  }
+  saturationTimeout = window.setTimeout(() => {
+    props.editor.setSaturation(value)
+  }, 300)
 })
 
 watch(grayscale, (value) => {

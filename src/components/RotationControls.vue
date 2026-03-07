@@ -7,6 +7,7 @@ const props = defineProps<{
 }>()
 
 const rotationAngle = ref(0)
+let rotationTimeout: number | null = null
 
 const rotate90 = () => {
   rotationAngle.value = (rotationAngle.value + 90) % 360
@@ -32,9 +33,14 @@ const handleFlipVertical = () => {
   props.editor.flipVertical()
 }
 
-// Single watcher handles all rotation changes (slider, quick buttons, reset)
+// Single watcher handles all rotation changes (slider, quick buttons, reset) with debouncing
 watch(rotationAngle, (newAngle) => {
-  props.editor.setRotation(newAngle)
+  if (rotationTimeout) {
+    clearTimeout(rotationTimeout)
+  }
+  rotationTimeout = window.setTimeout(() => {
+    props.editor.setRotation(newAngle)
+  }, 300)
 })
 </script>
 
