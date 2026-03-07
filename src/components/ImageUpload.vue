@@ -38,6 +38,8 @@ const handleDragLeave = () => {
 const openFilePicker = () => {
   fileInput.value?.click()
 }
+
+defineExpose({ isDragging, fileInput })
 </script>
 
 <template>

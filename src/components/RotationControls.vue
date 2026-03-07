@@ -8,28 +8,20 @@ const props = defineProps<{
 
 const rotationAngle = ref(0)
 
-const handleRotationChange = () => {
-  props.editor.setRotation(rotationAngle.value)
-}
-
 const rotate90 = () => {
   rotationAngle.value = (rotationAngle.value + 90) % 360
-  handleRotationChange()
 }
 
 const rotate180 = () => {
   rotationAngle.value = (rotationAngle.value + 180) % 360
-  handleRotationChange()
 }
 
 const rotate270 = () => {
   rotationAngle.value = (rotationAngle.value - 90 + 360) % 360
-  handleRotationChange()
 }
 
 const resetRotation = () => {
   rotationAngle.value = 0
-  handleRotationChange()
 }
 
 const handleFlipHorizontal = () => {
@@ -40,9 +32,9 @@ const handleFlipVertical = () => {
   props.editor.flipVertical()
 }
 
-// Watch for manual slider changes
-watch(rotationAngle, () => {
-  handleRotationChange()
+// Single watcher handles all rotation changes (slider, quick buttons, reset)
+watch(rotationAngle, (newAngle) => {
+  props.editor.setRotation(newAngle)
 })
 </script>
 

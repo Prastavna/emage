@@ -87,7 +87,7 @@ describe('ImageUpload Component', () => {
         preventDefault: vi.fn()
       })
       
-      expect(wrapper.vm.isDragging).toBe(true)
+      expect((wrapper.vm as any).isDragging).toBe(true)
       expect(dropZone.classes()).toContain('border-primary')
     })
 
@@ -95,10 +95,10 @@ describe('ImageUpload Component', () => {
       const dropZone = wrapper.find('.border-2')
       
       await dropZone.trigger('dragover')
-      expect(wrapper.vm.isDragging).toBe(true)
+      expect((wrapper.vm as any).isDragging).toBe(true)
       
       await dropZone.trigger('dragleave')
-      expect(wrapper.vm.isDragging).toBe(false)
+      expect((wrapper.vm as any).isDragging).toBe(false)
     })
 
     it('should emit imageSelected on valid image drop', async () => {
@@ -116,7 +116,7 @@ describe('ImageUpload Component', () => {
       
       expect(wrapper.emitted('imageSelected')).toBeTruthy()
       expect(wrapper.emitted('imageSelected')?.[0]).toEqual([file])
-      expect(wrapper.vm.isDragging).toBe(false)
+      expect((wrapper.vm as any).isDragging).toBe(false)
     })
 
     it('should not emit on invalid file drop', async () => {
@@ -141,7 +141,7 @@ describe('ImageUpload Component', () => {
       // The component handles dragover correctly even if we can't easily mock preventDefault
       await dropZone.trigger('dragover')
       
-      expect(wrapper.vm.isDragging).toBe(true)
+      expect((wrapper.vm as any).isDragging).toBe(true)
     })
 
     it('should prevent default on drop', async () => {
@@ -219,11 +219,11 @@ describe('ImageUpload Component', () => {
 
   describe('Component Data', () => {
     it('should initialize with isDragging false', () => {
-      expect(wrapper.vm.isDragging).toBe(false)
+      expect((wrapper.vm as any).isDragging).toBe(false)
     })
 
     it('should have fileInput ref', () => {
-      expect(wrapper.vm.fileInput).toBeDefined()
+      expect((wrapper.vm as any).fileInput).toBeDefined()
     })
   })
 

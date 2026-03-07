@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CropOverlay from './CropOverlay.vue'
 
@@ -115,7 +115,7 @@ describe('CropOverlay Component', () => {
   it('should constrain crop area to image bounds', async () => {
     const updates = wrapper.emitted('update')
     if (updates && updates.length > 0) {
-      const cropArea = updates[0][0] as any
+      const cropArea = updates[0]![0] as any
       expect(cropArea.x).toBeGreaterThanOrEqual(defaultProps.imageBounds.left)
       expect(cropArea.y).toBeGreaterThanOrEqual(defaultProps.imageBounds.top)
     }

@@ -38,6 +38,9 @@ export function useImageEditor() {
   const hiddenCanvas = ref<HTMLCanvasElement | null>(null)
   const hiddenContext = ref<CanvasRenderingContext2D | null>(null)
   
+  // Track current rotation angle for hidden canvas reconstruction
+  const currentRotationAngle = ref(0)
+  
   // Store original file info
   const originalFile = ref<File | null>(null)
   const originalFileFormat = ref<string>('image/jpeg')
@@ -185,9 +188,24 @@ export function useImageEditor() {
     }
   }
   
+  /**
+   * Reconstructs the hidden canvas from the original image with the given rotation angle,
+   * then applies current filters. Always works from the original image to avoid accumulation.
+   */
   const applyRotationToHiddenCanvas = (angle: number) => {
+    currentRotationAngle.value = angle
+    reconstructHiddenCanvas()
+  }
+  
+  /**
+   * Reconstructs the hidden canvas from the original image with current rotation
+   * and current filters applied. This is the single source of truth for the hidden
+   * canvas content, ensuring no destructive accumulation of transformations.
+   */
+  const reconstructHiddenCanvas = () => {
     if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
     
+    const angle = currentRotationAngle.value
     const rad = (angle * Math.PI) / 180
     const cos = Math.cos(rad)
     const sin = Math.sin(rad)
@@ -199,32 +217,21 @@ export function useImageEditor() {
     const newWidth = Math.abs(origWidth * cos) + Math.abs(origHeight * sin)
     const newHeight = Math.abs(origWidth * sin) + Math.abs(origHeight * cos)
     
-    // Create temporary canvas
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = newWidth
-    tempCanvas.height = newHeight
-    const tempCtx = tempCanvas.getContext('2d')
+    // Update hidden canvas dimensions and redraw from original image
+    hiddenCanvas.value.width = newWidth
+    hiddenCanvas.value.height = newHeight
+    hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
     
-    if (tempCtx) {
-      // Move to center and rotate
-      tempCtx.translate(newWidth / 2, newHeight / 2)
-      tempCtx.rotate(rad)
-      
-      // Draw image centered
-      tempCtx.drawImage(
-        hiddenCanvas.value,
-        -hiddenCanvas.value.width / 2,
-        -hiddenCanvas.value.height / 2
-      )
-      
-      // Update hidden canvas
-      hiddenCanvas.value.width = newWidth
-      hiddenCanvas.value.height = newHeight
-      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
-      if (hiddenContext.value) {
-        hiddenContext.value.drawImage(tempCanvas, 0, 0)
-      }
-    }
+    if (!hiddenContext.value) return
+    
+    // Draw original image with rotation
+    hiddenContext.value.translate(newWidth / 2, newHeight / 2)
+    hiddenContext.value.rotate(rad)
+    hiddenContext.value.drawImage(originalImage.value, -origWidth / 2, -origHeight / 2)
+    hiddenContext.value.setTransform(1, 0, 0, 1, 0, 0)
+    
+    // Apply filters on the freshly drawn image
+    applyFiltersToHiddenCanvas()
   }
 
   const flipHorizontal = () => {
@@ -276,7 +283,7 @@ export function useImageEditor() {
   const applyFilters = () => {
     if (!fabricImage.value || !hiddenCanvas.value || !hiddenContext.value) return
 
-    const filterArray: any[] = []
+    const filterArray: InstanceType<typeof filters.BaseFilter>[] = []
 
     if (currentFilters.value.brightness !== 0) {
       filterArray.push(new filters.Brightness({
@@ -305,18 +312,28 @@ export function useImageEditor() {
     fabricImage.value.applyFilters()
     canvas.value?.renderAll()
     
-    // Apply to hidden canvas
-    applyFiltersToHiddenCanvas()
+    // Reconstruct hidden canvas from original image with rotation + filters
+    reconstructHiddenCanvas()
   }
   
+  /**
+   * Applies current filters to the hidden canvas pixel data.
+   * This should only be called after the hidden canvas has been freshly drawn
+   * from the original image (via reconstructHiddenCanvas), so filters are never compounded.
+   */
   const applyFiltersToHiddenCanvas = () => {
-    if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
+    if (!hiddenCanvas.value || !hiddenContext.value) return
     
-    // Get image data
+    const hasFilters = currentFilters.value.brightness !== 0 ||
+      currentFilters.value.contrast !== 0 ||
+      currentFilters.value.saturation !== 0 ||
+      currentFilters.value.grayscale
+    
+    if (!hasFilters) return
+    
     const imageData = hiddenContext.value.getImageData(0, 0, hiddenCanvas.value.width, hiddenCanvas.value.height)
     const data = imageData.data
     
-    // Apply filters manually to image data
     for (let i = 0; i < data.length; i += 4) {
       let r: number = data[i] ?? 0
       let g: number = data[i + 1] ?? 0
@@ -359,7 +376,6 @@ export function useImageEditor() {
       data[i + 2] = Math.max(0, Math.min(255, b))
     }
     
-    // Put image data back
     hiddenContext.value.putImageData(imageData, 0, 0)
   }
 

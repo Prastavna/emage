@@ -92,8 +92,8 @@ describe('ResizeControls Component', () => {
     
     const inputs = wrapper.findAll('input[type="number"]')
     if (inputs.length >= 2) {
-      await inputs[0].setValue('800')
-      await inputs[1].setValue('600')
+      await inputs[0]!.setValue('800')
+      await inputs[1]!.setValue('600')
     }
     
     const button = wrapper.find('button.btn-primary')

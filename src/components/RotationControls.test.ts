@@ -1,9 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RotationControls from './RotationControls.vue'
-import { useImageEditor } from '../composables/useImageEditor'
-
-vi.mock('../composables/useImageEditor')
 
 describe('RotationControls Component', () => {
   const mockEditor = {
@@ -12,6 +9,10 @@ describe('RotationControls Component', () => {
     flipVertical: vi.fn(),
     imageLoaded: { value: true }
   }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('should render the component', () => {
     const wrapper = mount(RotationControls, {
@@ -58,10 +59,10 @@ describe('RotationControls Component', () => {
       props: { editor: mockEditor as any }
     })
     const slider = wrapper.find('input[type="range"]')
-    
+
     await slider.setValue('45')
     await wrapper.vm.$nextTick()
-    
+
     expect(mockEditor.setRotation).toHaveBeenCalled()
   })
 
@@ -71,7 +72,7 @@ describe('RotationControls Component', () => {
     })
     const buttons = wrapper.findAll('button')
     const rotate90Button = buttons.find(b => b.text().includes('90°'))
-    
+
     if (rotate90Button) {
       await rotate90Button.trigger('click')
       expect(mockEditor.setRotation).toHaveBeenCalled()
@@ -84,7 +85,7 @@ describe('RotationControls Component', () => {
     })
     const buttons = wrapper.findAll('button')
     const flipHButton = buttons.find(b => b.text().includes('Horizontal'))
-    
+
     if (flipHButton) {
       await flipHButton.trigger('click')
       expect(mockEditor.flipHorizontal).toHaveBeenCalled()
@@ -97,7 +98,7 @@ describe('RotationControls Component', () => {
     })
     const buttons = wrapper.findAll('button')
     const flipVButton = buttons.find(b => b.text().includes('Vertical'))
-    
+
     if (flipVButton) {
       await flipVButton.trigger('click')
       expect(mockEditor.flipVertical).toHaveBeenCalled()
@@ -108,7 +109,7 @@ describe('RotationControls Component', () => {
     const wrapper = mount(RotationControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const badge = wrapper.find('.badge')
     expect(badge.exists()).toBe(true)
     expect(badge.text()).toContain('°')
@@ -119,8 +120,14 @@ describe('RotationControls Component', () => {
       props: { editor: mockEditor as any }
     })
     const buttons = wrapper.findAll('button')
+    const rotate90Button = buttons.find(b => b.text().includes('90°'))
+
+    if (rotate90Button) {
+      await rotate90Button.trigger('click')
+      await wrapper.vm.$nextTick()
+    }
+
     const resetButton = buttons.find(b => b.text().includes('Reset'))
-    
     if (resetButton) {
       await resetButton.trigger('click')
       await wrapper.vm.$nextTick()

@@ -115,17 +115,17 @@ describe('ImageEditor Component', () => {
         cropAspectRatio: null
       }
     })
-    expect(wrapper.props('file')).toEqual(file)
+    expect((wrapper.props() as any).file).toEqual(file)
   })
 
   it('should accept cropAspectRatio prop', () => {
     const wrapper = mount(ImageEditor, {
       props: {
         file: null,
-        cropAspectRatio: 16/9
+        cropAspectRatio: 16 / 9
       }
     })
-    expect(wrapper.props('cropAspectRatio')).toBe(16/9)
+    expect((wrapper.props() as any).cropAspectRatio).toBe(16 / 9)
   })
 
   it('should accept null cropAspectRatio', () => {
@@ -135,7 +135,7 @@ describe('ImageEditor Component', () => {
         cropAspectRatio: null
       }
     })
-    expect(wrapper.props('cropAspectRatio')).toBeNull()
+    expect((wrapper.props() as any).cropAspectRatio).toBeNull()
   })
 
   it('should have relative positioning on container', () => {
