@@ -50,14 +50,14 @@ defineExpose({ isDragging, fileInput })
       @dragleave="handleDragLeave"
       @click="openFilePicker"
       :class="[
-        'border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors',
+        'border-2 border-dashed rounded-lg p-6 md:p-12 text-center cursor-pointer transition-colors',
         isDragging ? 'border-primary bg-primary/10' : 'border-base-300 hover:border-primary'
       ]"
     >
-      <div class="flex flex-col items-center gap-4">
+      <div class="flex flex-col items-center gap-3 md:gap-4">
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="h-16 w-16 text-base-content/50"
+          class="h-12 w-12 md:h-16 md:w-16 text-base-content/50"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -70,8 +70,8 @@ defineExpose({ isDragging, fileInput })
           />
         </svg>
         <div>
-          <p class="text-lg font-semibold">Drop your image here</p>
-          <p class="text-sm text-base-content/60">or click to browse</p>
+          <p class="text-base md:text-lg font-semibold">Drop your image here</p>
+          <p class="text-xs md:text-sm text-base-content/60">or click to browse</p>
         </div>
         <p class="text-xs text-base-content/50">Supports: JPG, PNG, GIF, WebP</p>
       </div>

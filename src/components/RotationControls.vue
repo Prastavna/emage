@@ -78,19 +78,19 @@ watch(rotationAngle, (newAngle) => {
       <div>
         <label class="label-text text-xs font-semibold mb-2 block">Quick Rotate</label>
         <div class="flex flex-wrap gap-2">
-          <button @click="rotate90" class="btn btn-sm btn-primary flex-1">
+          <button @click="rotate90" class="btn btn-sm md:btn-md btn-primary flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
             </svg>
             90°
           </button>
-          <button @click="rotate180" class="btn btn-sm btn-primary flex-1">
+          <button @click="rotate180" class="btn btn-sm md:btn-md btn-primary flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
             </svg>
             180°
           </button>
-          <button @click="rotate270" class="btn btn-sm btn-primary flex-1">
+          <button @click="rotate270" class="btn btn-sm md:btn-md btn-primary flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
             </svg>
@@ -105,14 +105,14 @@ watch(rotationAngle, (newAngle) => {
       <div>
         <label class="label-text text-xs font-semibold mb-2 block">Flip</label>
         <div class="flex gap-2">
-          <button @click="handleFlipHorizontal" class="btn btn-sm btn-secondary flex-1">
+          <button @click="handleFlipHorizontal" class="btn btn-sm md:btn-md btn-secondary flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/>
               <path d="M3 12h8M13 12h8" stroke-dasharray="2 2"/>
             </svg>
             Horizontal
           </button>
-          <button @click="handleFlipVertical" class="btn btn-sm btn-secondary flex-1">
+          <button @click="handleFlipVertical" class="btn btn-sm md:btn-md btn-secondary flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/>
               <path d="M12 3v8M12 13v8" stroke-dasharray="2 2"/>

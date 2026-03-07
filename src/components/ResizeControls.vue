@@ -241,8 +241,7 @@ onMounted(async () => {
             class="input input-bordered input-sm w-full"
           />
         </label>
-
-        <button @click="applyResize" class="btn btn-sm btn-primary w-full">
+        <button @click="applyResize" class="btn btn-sm btn-primary w-full mt-2">
           Apply Resize
         </button>
       </div>

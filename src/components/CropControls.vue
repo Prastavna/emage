@@ -54,7 +54,7 @@ const applyCrop = async () => {
         <p class="text-sm text-base-content/70">
           Enter crop mode to adjust the crop area
         </p>
-        <button @click="toggleCropMode" class="btn btn-sm btn-primary w-full">
+        <button @click="toggleCropMode" class="btn btn-sm md:btn-md btn-primary w-full">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path d="M6 4a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" />
             <path fill-rule="evenodd" d="M3 6a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V6zm2 0h10v8H5V6z" clip-rule="evenodd" />
@@ -83,14 +83,14 @@ const applyCrop = async () => {
           </select>
         </label>
 
-        <div class="flex gap-2">
-          <button @click="applyCrop" class="btn btn-sm btn-success flex-1">
+        <div class="flex gap-2 mt-2">
+          <button @click="applyCrop" class="btn btn-sm md:btn-md btn-success flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
             </svg>
             Apply
           </button>
-          <button @click="toggleCropMode" class="btn btn-sm btn-outline flex-1">
+          <button @click="toggleCropMode" class="btn btn-sm md:btn-md btn-outline flex-1 min-h-[2.5rem]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>

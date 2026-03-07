@@ -217,37 +217,37 @@ onUnmounted(() => {
       
       <!-- Corner handles -->
       <div 
-        class="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-nw-resize"
+        class="absolute -top-3 -left-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-nw-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'nw')"
       ></div>
       <div 
-        class="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-ne-resize"
+        class="absolute -top-3 -right-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-ne-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'ne')"
       ></div>
       <div 
-        class="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-sw-resize"
+        class="absolute -bottom-3 -left-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-sw-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'sw')"
       ></div>
       <div 
-        class="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-se-resize"
+        class="absolute -bottom-3 -right-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-se-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'se')"
       ></div>
       
       <!-- Edge handles -->
       <div 
-        class="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-n-resize"
+        class="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-n-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'n')"
       ></div>
       <div 
-        class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-s-resize"
+        class="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-s-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 's')"
       ></div>
       <div 
-        class="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-w-resize"
+        class="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-w-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'w')"
       ></div>
       <div 
-        class="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-primary rounded-full cursor-e-resize"
+        class="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-e-resize touch-none"
         @mousedown.stop="handleMouseDown($event, 'e')"
       ></div>
     </div>
