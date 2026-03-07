@@ -33,6 +33,14 @@ export function useImageEditor() {
     saturation: 0,
     grayscale: false
   })
+  
+  // Hidden canvas for maintaining original image quality
+  const hiddenCanvas = ref<HTMLCanvasElement | null>(null)
+  const hiddenContext = ref<CanvasRenderingContext2D | null>(null)
+  
+  // Store original file info
+  const originalFile = ref<File | null>(null)
+  const originalFileFormat = ref<string>('image/jpeg')
 
   const initCanvas = (canvasElement: HTMLCanvasElement) => {
     canvas.value = new Canvas(canvasElement, {
@@ -51,14 +59,31 @@ export function useImageEditor() {
         try {
           const dataUrl = e.target?.result as string
           
+          // Store original file and format
+          originalFile.value = file
+          originalFileFormat.value = file.type || 'image/jpeg'
+          
           // Store original image
           const img = new Image()
-          img.onload = () => {
+          img.onload = async () => {
             originalImage.value = img
+            
+            // Initialize hidden canvas with original image dimensions
+            if (!hiddenCanvas.value) {
+              hiddenCanvas.value = document.createElement('canvas')
+            }
+            hiddenCanvas.value.width = img.width
+            hiddenCanvas.value.height = img.height
+            hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+            
+            if (hiddenContext.value) {
+              // Draw original image to hidden canvas
+              hiddenContext.value.drawImage(img, 0, 0)
+            }
           }
           img.src = dataUrl
           
-          // Load image into Fabric canvas
+          // Load image into Fabric canvas (for preview)
           const fabricImg = await FabricImage.fromURL(dataUrl)
           
           if (canvas.value) {
@@ -131,36 +156,120 @@ export function useImageEditor() {
   }
 
   const rotate = (angle: number) => {
-    if (fabricImage.value) {
+    if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
       const currentAngle = fabricImage.value.angle || 0
-      fabricImage.value.rotate(currentAngle + angle)
+      const newAngle = currentAngle + angle
+      
+      // Update preview canvas
+      fabricImage.value.rotate(newAngle)
       canvas.value?.renderAll()
+      
+      // Update hidden canvas
+      applyRotationToHiddenCanvas(newAngle)
     }
   }
 
   const setRotation = (angle: number) => {
-    if (fabricImage.value) {
+    if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
+      // Update preview canvas
       fabricImage.value.rotate(angle)
       canvas.value?.renderAll()
+      
+      // Update hidden canvas
+      applyRotationToHiddenCanvas(angle)
+    }
+  }
+  
+  const applyRotationToHiddenCanvas = (angle: number) => {
+    if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
+    
+    const rad = (angle * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    
+    const origWidth = originalImage.value.width
+    const origHeight = originalImage.value.height
+    
+    // Calculate new dimensions after rotation
+    const newWidth = Math.abs(origWidth * cos) + Math.abs(origHeight * sin)
+    const newHeight = Math.abs(origWidth * sin) + Math.abs(origHeight * cos)
+    
+    // Create temporary canvas
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = newWidth
+    tempCanvas.height = newHeight
+    const tempCtx = tempCanvas.getContext('2d')
+    
+    if (tempCtx) {
+      // Move to center and rotate
+      tempCtx.translate(newWidth / 2, newHeight / 2)
+      tempCtx.rotate(rad)
+      
+      // Draw image centered
+      tempCtx.drawImage(
+        hiddenCanvas.value,
+        -hiddenCanvas.value.width / 2,
+        -hiddenCanvas.value.height / 2
+      )
+      
+      // Update hidden canvas
+      hiddenCanvas.value.width = newWidth
+      hiddenCanvas.value.height = newHeight
+      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+      if (hiddenContext.value) {
+        hiddenContext.value.drawImage(tempCanvas, 0, 0)
+      }
     }
   }
 
   const flipHorizontal = () => {
-    if (fabricImage.value) {
+    if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
+      // Update preview
       fabricImage.value.set('flipX', !fabricImage.value.flipX)
       canvas.value?.renderAll()
+      
+      // Update hidden canvas
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = hiddenCanvas.value.width
+      tempCanvas.height = hiddenCanvas.value.height
+      const tempCtx = tempCanvas.getContext('2d')
+      
+      if (tempCtx) {
+        tempCtx.translate(tempCanvas.width, 0)
+        tempCtx.scale(-1, 1)
+        tempCtx.drawImage(hiddenCanvas.value, 0, 0)
+        
+        hiddenContext.value.clearRect(0, 0, hiddenCanvas.value.width, hiddenCanvas.value.height)
+        hiddenContext.value.drawImage(tempCanvas, 0, 0)
+      }
     }
   }
 
   const flipVertical = () => {
-    if (fabricImage.value) {
+    if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
+      // Update preview
       fabricImage.value.set('flipY', !fabricImage.value.flipY)
       canvas.value?.renderAll()
+      
+      // Update hidden canvas
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = hiddenCanvas.value.width
+      tempCanvas.height = hiddenCanvas.value.height
+      const tempCtx = tempCanvas.getContext('2d')
+      
+      if (tempCtx) {
+        tempCtx.translate(0, tempCanvas.height)
+        tempCtx.scale(1, -1)
+        tempCtx.drawImage(hiddenCanvas.value, 0, 0)
+        
+        hiddenContext.value.clearRect(0, 0, hiddenCanvas.value.width, hiddenCanvas.value.height)
+        hiddenContext.value.drawImage(tempCanvas, 0, 0)
+      }
     }
   }
 
   const applyFilters = () => {
-    if (!fabricImage.value) return
+    if (!fabricImage.value || !hiddenCanvas.value || !hiddenContext.value) return
 
     const filterArray: any[] = []
 
@@ -186,9 +295,67 @@ export function useImageEditor() {
       filterArray.push(new filters.Grayscale())
     }
 
+    // Apply to preview canvas
     fabricImage.value.filters = filterArray
     fabricImage.value.applyFilters()
     canvas.value?.renderAll()
+    
+    // Apply to hidden canvas
+    applyFiltersToHiddenCanvas()
+  }
+  
+  const applyFiltersToHiddenCanvas = () => {
+    if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
+    
+    // Get image data
+    const imageData = hiddenContext.value.getImageData(0, 0, hiddenCanvas.value.width, hiddenCanvas.value.height)
+    const data = imageData.data
+    
+    // Apply filters manually to image data
+    for (let i = 0; i < data.length; i += 4) {
+      let r: number = data[i] ?? 0
+      let g: number = data[i + 1] ?? 0
+      let b: number = data[i + 2] ?? 0
+      
+      // Apply grayscale
+      if (currentFilters.value.grayscale) {
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b
+        r = g = b = gray
+      }
+      
+      // Apply brightness
+      if (currentFilters.value.brightness !== 0) {
+        const brightness = currentFilters.value.brightness * 255
+        r += brightness
+        g += brightness
+        b += brightness
+      }
+      
+      // Apply contrast
+      if (currentFilters.value.contrast !== 0) {
+        const contrast = currentFilters.value.contrast + 1
+        r = ((r / 255 - 0.5) * contrast + 0.5) * 255
+        g = ((g / 255 - 0.5) * contrast + 0.5) * 255
+        b = ((b / 255 - 0.5) * contrast + 0.5) * 255
+      }
+      
+      // Apply saturation
+      if (currentFilters.value.saturation !== 0) {
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b
+        const saturation = currentFilters.value.saturation + 1
+        r = gray + saturation * (r - gray)
+        g = gray + saturation * (g - gray)
+        b = gray + saturation * (b - gray)
+      }
+      
+      // Clamp values
+      data[i] = Math.max(0, Math.min(255, r))
+      data[i + 1] = Math.max(0, Math.min(255, g))
+      data[i + 2] = Math.max(0, Math.min(255, b))
+    }
+    
+    // Put image data back
+    hiddenContext.value.putImageData(imageData, 0, 0)
   }
 
   const setBrightness = (value: number) => {
@@ -236,34 +403,44 @@ export function useImageEditor() {
   }
 
   const applyCrop = async () => {
-    if (!fabricImage.value || !canvas.value || !cropArea.value) return
+    if (!fabricImage.value || !canvas.value || !cropArea.value || !hiddenCanvas.value || !hiddenContext.value) return
 
     const img = fabricImage.value
     const imgBounds = img.getBoundingRect()
     
-    // Calculate crop coordinates relative to the image
+    // Calculate crop coordinates relative to the preview image
     const relX = (cropArea.value.x - imgBounds.left) / (img.scaleX || 1)
     const relY = (cropArea.value.y - imgBounds.top) / (img.scaleY || 1)
     const relWidth = cropArea.value.width / (img.scaleX || 1)
     const relHeight = cropArea.value.height / (img.scaleY || 1)
+    
+    // Calculate the scale factor between hidden canvas and preview
+    const scaleX = hiddenCanvas.value.width / img.width
+    const scaleY = hiddenCanvas.value.height / img.height
+    
+    // Calculate crop coordinates on the hidden canvas
+    const hiddenX = relX * scaleX
+    const hiddenY = relY * scaleY
+    const hiddenWidth = relWidth * scaleX
+    const hiddenHeight = relHeight * scaleY
 
-    // Create a temporary canvas for cropping
+    // Crop the hidden canvas
     const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = relWidth
-    tempCanvas.height = relHeight
+    tempCanvas.width = hiddenWidth
+    tempCanvas.height = hiddenHeight
     const ctx = tempCanvas.getContext('2d')
 
-    if (ctx && img._element) {
+    if (ctx) {
       ctx.drawImage(
-        img._element as CanvasImageSource,
-        relX,
-        relY,
-        relWidth,
-        relHeight,
+        hiddenCanvas.value,
+        hiddenX,
+        hiddenY,
+        hiddenWidth,
+        hiddenHeight,
         0,
         0,
-        relWidth,
-        relHeight
+        hiddenWidth,
+        hiddenHeight
       )
 
       // Convert to blob and reload
@@ -278,13 +455,13 @@ export function useImageEditor() {
   }
 
   const resize = async (width: number, height: number, maintainAspect: boolean = true) => {
-    if (!fabricImage.value || !fabricImage.value._element) return
+    if (!hiddenCanvas.value || !hiddenContext.value) return
 
     let newWidth = width
     let newHeight = height
 
-    if (maintainAspect) {
-      const aspectRatio = fabricImage.value.width / fabricImage.value.height
+    if (maintainAspect && hiddenCanvas.value) {
+      const aspectRatio = hiddenCanvas.value.width / hiddenCanvas.value.height
       if (width && !height) {
         newHeight = width / aspectRatio
       } else if (height && !width) {
@@ -299,23 +476,23 @@ export function useImageEditor() {
       }
     }
 
-    // Create a temporary canvas for resizing with actual pixel data
+    // Create a temporary canvas for resizing the hidden canvas
     const tempCanvas = document.createElement('canvas')
     tempCanvas.width = Math.round(newWidth)
     tempCanvas.height = Math.round(newHeight)
     const ctx = tempCanvas.getContext('2d')
 
     if (ctx) {
-      // Draw the actual image (not the canvas) at the new size
+      // Draw the hidden canvas (which has original quality) at the new size
       ctx.drawImage(
-        fabricImage.value._element as CanvasImageSource,
+        hiddenCanvas.value,
         0,
         0,
         tempCanvas.width,
         tempCanvas.height
       )
 
-      // Convert to blob and reload to actually change the image data
+      // Convert to blob and reload to update both canvases
       const blob = await new Promise<Blob | null>(resolve => {
         tempCanvas.toBlob(resolve, 'image/png', 1)
       })
@@ -328,7 +505,7 @@ export function useImageEditor() {
   }
 
   const resizeToFileSize = async (targetKB: number, format: string = 'image/jpeg'): Promise<boolean> => {
-    if (!canvas.value || !fabricImage.value) return false
+    if (!hiddenCanvas.value || !hiddenContext.value) return false
 
     let quality = 0.92
     let scaleFactor = 1.0
@@ -350,9 +527,9 @@ export function useImageEditor() {
       
       if (!ctx) return false
       
-      // Draw scaled image
+      // Draw scaled image from hidden canvas
       ctx.drawImage(
-        canvas.value.getElement(),
+        hiddenCanvas.value,
         0,
         0,
         targetWidth,
@@ -391,7 +568,7 @@ export function useImageEditor() {
       }
     }
     
-    // Reload the compressed/resized image back into the canvas
+    // Reload the compressed/resized image back into both canvases
     if (blob) {
       const extension = format.split('/')[1]
       const file = new File([blob], `compressed.${extension}`, { type: format })
@@ -403,10 +580,11 @@ export function useImageEditor() {
   }
 
   const exportImage = async (format: string = 'image/png', quality: number = 1): Promise<Blob | null> => {
-    if (!canvas.value) return null
+    if (!hiddenCanvas.value) return null
 
+    // Export directly from hidden canvas (which has original quality)
     return new Promise((resolve) => {
-      canvas.value?.getElement().toBlob(
+      hiddenCanvas.value!.toBlob(
         (blob) => resolve(blob),
         format,
         quality
@@ -435,52 +613,38 @@ export function useImageEditor() {
   }
 
   const getCurrentDimensions = (): ImageDimensions | null => {
-    if (!fabricImage.value) return null
+    if (!hiddenCanvas.value) return null
     
-    // Return the actual image dimensions (not the scaled display dimensions)
+    // Return the hidden canvas dimensions (actual image dimensions)
     return {
-      width: Math.round(fabricImage.value.width),
-      height: Math.round(fabricImage.value.height)
+      width: hiddenCanvas.value.width,
+      height: hiddenCanvas.value.height
     }
   }
 
-  const getCurrentFileSize = async (format: string = 'image/png', quality: number = 1): Promise<number | null> => {
-    if (!canvas.value || !fabricImage.value) return null
+  const getCurrentFileSize = async (format?: string, quality?: number): Promise<number | null> => {
+    if (!hiddenCanvas.value) return null
     
-    // Create a temporary canvas with just the image dimensions (not the canvas display size)
-    const tempCanvas = document.createElement('canvas')
-    const dims = getCurrentDimensions()
-    if (!dims) return null
+    // Use original format if not specified
+    const useFormat = format || originalFileFormat.value
+    // Use appropriate quality based on format
+    const useQuality = quality !== undefined ? quality : (useFormat === 'image/png' ? 1 : 0.92)
     
-    tempCanvas.width = dims.width
-    tempCanvas.height = dims.height
-    const ctx = tempCanvas.getContext('2d')
-    
-    if (!ctx || !fabricImage.value._element) return null
-    
-    // Draw the actual image at its actual size
-    ctx.drawImage(
-      fabricImage.value._element as CanvasImageSource,
-      0,
-      0,
-      dims.width,
-      dims.height
-    )
-    
+    // Get file size directly from hidden canvas
     return new Promise((resolve) => {
-      tempCanvas.toBlob((blob) => {
+      hiddenCanvas.value!.toBlob((blob) => {
         if (blob) {
           // Return size in KB
           resolve(blob.size / 1024)
         } else {
           resolve(null)
         }
-      }, format, quality)
+      }, useFormat, useQuality)
     })
   }
 
   const estimateFileSizeForDimensions = async (width: number, height: number, format: string = 'image/png', quality: number = 1): Promise<number | null> => {
-    if (!fabricImage.value || !fabricImage.value._element) return null
+    if (!hiddenCanvas.value) return null
     
     // Create a temporary canvas at target dimensions
     const tempCanvas = document.createElement('canvas')
@@ -490,9 +654,9 @@ export function useImageEditor() {
     
     if (!ctx) return null
     
-    // Draw the actual image (not the canvas) scaled to target dimensions
+    // Draw the hidden canvas (original quality) scaled to target dimensions
     ctx.drawImage(
-      fabricImage.value._element as CanvasImageSource,
+      hiddenCanvas.value,
       0,
       0,
       tempCanvas.width,
@@ -560,6 +724,7 @@ export function useImageEditor() {
     currentFilters,
     cropMode,
     cropArea,
+    originalFileFormat,
     initCanvas,
     loadImage,
     rotate,

@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useImageEditor } from '../composables/useImageEditor'
 
 const props = defineProps<{
   editor: ReturnType<typeof useImageEditor>
 }>()
 
-const exportFormat = ref<string>('image/png')
-const exportQuality = ref<number>(1)
+const exportFormat = ref<string>('image/jpeg')
+const exportQuality = ref<number>(0.92)
 const filename = ref<string>('edited-image')
+
+// Watch for image load and set format to match original
+watch(() => props.editor.imageLoaded.value, (loaded) => {
+  if (loaded && props.editor.originalFileFormat.value) {
+    exportFormat.value = props.editor.originalFileFormat.value
+    // Set quality based on format
+    if (exportFormat.value === 'image/png') {
+      exportQuality.value = 1
+    } else {
+      exportQuality.value = 0.92
+    }
+  }
+})
 
 const formatExtensions: Record<string, string> = {
   'image/png': 'png',

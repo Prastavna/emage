@@ -63,6 +63,11 @@ const handleAspectRatioChange = (ratio: number | null) => {
             </div>
           </div>
 
+          <ExportControls
+            v-if="editorRef?.editor"
+            :editor="editorRef.editor"
+          />
+
           <RotationControls
             v-if="editorRef?.editor"
             :editor="editorRef.editor"
@@ -80,11 +85,6 @@ const handleAspectRatioChange = (ratio: number | null) => {
           />
 
           <ResizeControls
-            v-if="editorRef?.editor"
-            :editor="editorRef.editor"
-          />
-
-          <ExportControls
             v-if="editorRef?.editor"
             :editor="editorRef.editor"
           />

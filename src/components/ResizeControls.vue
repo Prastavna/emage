@@ -10,12 +10,15 @@ const width = ref<number>(0)
 const height = ref<number>(0)
 const lockAspectRatio = ref(true)
 const targetFileSize = ref<number>(100)
-const resizeFormat = ref<string>('image/jpeg')
 const currentFileSize = ref<number | null>(null)
 const isUpdatingFromDimensions = ref(false)
 const isUpdatingFromFileSize = ref(false)
 let dimensionChangeTimeout: number | null = null
 let fileSizeChangeTimeout: number | null = null
+
+// Use PNG format for resize to maintain quality
+const resizeFormat = 'image/png'
+const resizeQuality = 1
 
 const currentDimensions = computed(() => {
   return props.editor.getCurrentDimensions()
@@ -67,8 +70,8 @@ const handleDimensionChange = async () => {
   const estimatedSize = await props.editor.estimateFileSizeForDimensions(
     width.value,
     height.value,
-    resizeFormat.value,
-    resizeFormat.value === 'image/png' ? 1 : 0.92
+    resizeFormat,
+    resizeQuality
   )
   
   if (estimatedSize) {
@@ -87,7 +90,7 @@ const handleFileSizeChange = async () => {
   // Calculate what dimensions would be needed
   const estimatedDims = await props.editor.estimateDimensionsForFileSize(
     targetFileSize.value,
-    resizeFormat.value
+    resizeFormat
   )
   
   if (estimatedDims) {
@@ -115,8 +118,8 @@ const updateFromCurrent = () => {
 }
 
 const updateFileSize = async () => {
-  currentFileSize.value = await props.editor.getCurrentFileSize(resizeFormat.value, 
-    resizeFormat.value === 'image/png' ? 1 : 0.92)
+  // Use the original file format for accurate file size calculation
+  currentFileSize.value = await props.editor.getCurrentFileSize()
   if (currentFileSize.value && !isUpdatingFromDimensions.value) {
     targetFileSize.value = Math.round(currentFileSize.value)
   }
@@ -146,11 +149,6 @@ watch(targetFileSize, (newVal, oldVal) => {
       handleFileSizeChange()
     }, 500)
   }
-})
-
-// Watch for format changes
-watch(resizeFormat, async () => {
-  await updateFileSize()
 })
 
 onMounted(async () => {
@@ -242,17 +240,6 @@ onMounted(async () => {
             placeholder="100"
             class="input input-bordered input-sm w-full"
           />
-        </label>
-
-        <label class="form-control">
-          <div class="label">
-            <span class="label-text text-xs">Format</span>
-          </div>
-          <select v-model="resizeFormat" class="select select-bordered select-sm w-full">
-            <option value="image/jpeg">JPEG</option>
-            <option value="image/png">PNG</option>
-            <option value="image/webp">WebP</option>
-          </select>
         </label>
 
         <button @click="applyResize" class="btn btn-sm btn-primary w-full">
