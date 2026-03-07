@@ -41,6 +41,7 @@ export function useImageEditor() {
   // Store original file info
   const originalFile = ref<File | null>(null)
   const originalFileFormat = ref<string>('image/jpeg')
+  const originalFileName = ref<string>('edited-image')
 
   const initCanvas = (canvasElement: HTMLCanvasElement) => {
     canvas.value = new Canvas(canvasElement, {
@@ -62,6 +63,10 @@ export function useImageEditor() {
           // Store original file and format
           originalFile.value = file
           originalFileFormat.value = file.type || 'image/jpeg'
+          
+          // Extract filename without extension
+          const fileName = file.name.replace(/\.[^/.]+$/, '')
+          originalFileName.value = fileName || 'edited-image'
           
           // Store original image
           const img = new Image()
@@ -725,6 +730,7 @@ export function useImageEditor() {
     cropMode,
     cropArea,
     originalFileFormat,
+    originalFileName,
     initCanvas,
     loadImage,
     rotate,

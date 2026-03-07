@@ -9,19 +9,47 @@ const props = defineProps<{
 const exportFormat = ref<string>('image/jpeg')
 const exportQuality = ref<number>(0.92)
 const filename = ref<string>('edited-image')
+const originalFilenameFromLoad = ref<string>('edited-image')
+const userChangedFilename = ref<boolean>(false)
+
+// Generate timestamp in format: YYYYMMDD-HHMMSS
+const getTimestamp = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`
+}
+
+// Track manual filename changes
+const handleFilenameInput = () => {
+  // If user types something different from the auto-generated name, mark as changed
+  userChangedFilename.value = true
+}
 
 // Watch for image load and set format to match original
 watch(() => props.editor.imageLoaded.value, (loaded) => {
-  if (loaded && props.editor.originalFileFormat.value) {
-    exportFormat.value = props.editor.originalFileFormat.value
-    // Set quality based on format
-    if (exportFormat.value === 'image/png') {
-      exportQuality.value = 1
-    } else {
-      exportQuality.value = 0.92
+  if (loaded) {
+    // Set format to match original
+    if (props.editor.originalFileFormat.value) {
+      exportFormat.value = props.editor.originalFileFormat.value
+      // Set quality based on format
+      if (exportFormat.value === 'image/png') {
+        exportQuality.value = 1
+      } else {
+        exportQuality.value = 0.92
+      }
     }
+    
+    // Set filename without timestamp initially
+    filename.value = props.editor.originalFileName.value
+    originalFilenameFromLoad.value = props.editor.originalFileName.value
+    userChangedFilename.value = false
   }
-})
+}, { immediate: true })
 
 const formatExtensions: Record<string, string> = {
   'image/png': 'png',
@@ -31,7 +59,15 @@ const formatExtensions: Record<string, string> = {
 
 const download = async () => {
   const extension = formatExtensions[exportFormat.value] || 'png'
-  const fullFilename = `${filename.value}.${extension}`
+  
+  // Add timestamp only if user hasn't changed the filename
+  let finalFilename = filename.value
+  if (!userChangedFilename.value) {
+    const timestamp = getTimestamp()
+    finalFilename = `${filename.value}-${timestamp}`
+  }
+  
+  const fullFilename = `${finalFilename}.${extension}`
   await props.editor.downloadImage(fullFilename, exportFormat.value, exportQuality.value)
 }
 </script>
@@ -51,6 +87,7 @@ const download = async () => {
             type="text"
             placeholder="my-image"
             class="input input-bordered input-sm w-full"
+            @input="handleFilenameInput"
           />
         </label>
 
