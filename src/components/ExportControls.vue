@@ -28,7 +28,6 @@ const isEstimating = ref(false)
 
 let resizeTimeout: number | null = null
 let fileSizeTimeout: number | null = null
-let estimateTimeout: number | null = null
 
 // --- Timestamp ---
 const getTimestamp = () => {
@@ -116,14 +115,6 @@ const updateEstimatedFileSize = async () => {
   isEstimating.value = true
   const size = await props.editor.getCurrentFileSize()
   estimatedFileSize.value = size
-  isEstimating.value = false
-}
-
-const updateEstimatedDimensions = async () => {
-  if (targetFileSize.value <= 0) return
-  isEstimating.value = true
-  const dims = await props.editor.estimateDimensionsForFileSize(targetFileSize.value)
-  estimatedDimensions.value = dims
   isEstimating.value = false
 }
 

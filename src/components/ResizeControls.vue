@@ -20,12 +20,6 @@ const originalAspectRatio = ref(1)
 
 let resizeTimeout: number | null = null
 
-const getAspectRatio = () => {
-  const dims = props.editor.getCurrentDimensions()
-  if (!dims || dims.height === 0) return 1
-  return dims.width / dims.height
-}
-
 // Debounced resize that auto-applies when user changes width/height
 const scheduleResize = () => {
   if (resizeTimeout) {
