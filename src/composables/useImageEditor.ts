@@ -46,6 +46,10 @@ export function useImageEditor() {
   const hiddenCanvas = ref<HTMLCanvasElement | null>(null)
   const hiddenContext = ref<CanvasRenderingContext2D | null>(null)
   
+  // Reactive tracking of hidden canvas dimensions (DOM properties aren't reactive)
+  const hiddenCanvasWidth = ref(0)
+  const hiddenCanvasHeight = ref(0)
+  
   // Track current rotation angle for hidden canvas reconstruction
   const currentRotationAngle = ref(0)
   
@@ -79,25 +83,32 @@ export function useImageEditor() {
           const fileName = file.name.replace(/\.[^/.]+$/, '')
           originalFileName.value = fileName || 'edited-image'
           
-          // Store original image
-          const img = new Image()
-          img.onload = async () => {
-            originalImage.value = img
-            
-            // Initialize hidden canvas with original image dimensions
-            if (!hiddenCanvas.value) {
-              hiddenCanvas.value = document.createElement('canvas')
-            }
-            hiddenCanvas.value.width = img.width
-            hiddenCanvas.value.height = img.height
-            hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
-            
-            if (hiddenContext.value) {
-              // Draw original image to hidden canvas
-              hiddenContext.value.drawImage(img, 0, 0)
-            }
+          // Wait for the native image to load so we get correct dimensions
+          const img = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
+            const image = new Image()
+            image.onload = () => resolveImg(image)
+            image.onerror = rejectImg
+            image.src = dataUrl
+          })
+          
+          originalImage.value = img
+          
+          // Initialize hidden canvas with original image dimensions
+          if (!hiddenCanvas.value) {
+            hiddenCanvas.value = document.createElement('canvas')
           }
-          img.src = dataUrl
+          hiddenCanvas.value.width = img.width
+          hiddenCanvas.value.height = img.height
+          hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+          
+          if (hiddenContext.value) {
+            // Draw original image to hidden canvas
+            hiddenContext.value.drawImage(img, 0, 0)
+          }
+          
+          // Update reactive dimension tracking
+          hiddenCanvasWidth.value = hiddenCanvas.value.width
+          hiddenCanvasHeight.value = hiddenCanvas.value.height
           
           // Load image into Fabric canvas (for preview)
           const fabricImg = await FabricImage.fromURL(dataUrl)
@@ -228,6 +239,8 @@ export function useImageEditor() {
     // Update hidden canvas dimensions and redraw from original image
     hiddenCanvas.value.width = newWidth
     hiddenCanvas.value.height = newHeight
+    hiddenCanvasWidth.value = newWidth
+    hiddenCanvasHeight.value = newHeight
     hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
     
     if (!hiddenContext.value) return
@@ -528,6 +541,8 @@ export function useImageEditor() {
     // Update hidden canvas with bordered image
     hiddenCanvas.value.width = tempCanvas.width
     hiddenCanvas.value.height = tempCanvas.height
+    hiddenCanvasWidth.value = tempCanvas.width
+    hiddenCanvasHeight.value = tempCanvas.height
     hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
     
     if (hiddenContext.value) {
@@ -695,10 +710,13 @@ export function useImageEditor() {
       }
     }
 
+    const finalWidth = Math.round(newWidth)
+    const finalHeight = Math.round(newHeight)
+
     // Create a temporary canvas for resizing the hidden canvas
     const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = Math.round(newWidth)
-    tempCanvas.height = Math.round(newHeight)
+    tempCanvas.width = finalWidth
+    tempCanvas.height = finalHeight
     const ctx = tempCanvas.getContext('2d')
 
     if (ctx) {
@@ -707,19 +725,39 @@ export function useImageEditor() {
         hiddenCanvas.value,
         0,
         0,
-        tempCanvas.width,
-        tempCanvas.height
+        finalWidth,
+        finalHeight
       )
 
-      // Convert to blob and reload to update both canvases
-      const blob = await new Promise<Blob | null>(resolve => {
-        tempCanvas.toBlob(resolve, 'image/png', 1)
-      })
-
-      if (blob) {
-        const file = new File([blob], 'resized.png', { type: 'image/png' })
-        await loadImage(file)
+      // Update hidden canvas directly with the resized content
+      hiddenCanvas.value.width = finalWidth
+      hiddenCanvas.value.height = finalHeight
+      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+      
+      if (hiddenContext.value) {
+        hiddenContext.value.drawImage(tempCanvas, 0, 0)
       }
+      
+      // Update the original image reference to the resized version
+      // so that reconstructHiddenCanvas works correctly from now on
+      const dataUrl = tempCanvas.toDataURL('image/png')
+      const img = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
+        const image = new Image()
+        image.onload = () => resolveImg(image)
+        image.onerror = rejectImg
+        image.src = dataUrl
+      })
+      originalImage.value = img
+      
+      // Reset rotation angle since the resize bakes in any prior rotation
+      currentRotationAngle.value = 0
+      
+      // Update reactive dimension tracking
+      hiddenCanvasWidth.value = finalWidth
+      hiddenCanvasHeight.value = finalHeight
+
+      // Update preview canvas from hidden canvas
+      await updatePreviewFromHiddenCanvas()
     }
   }
 
@@ -787,11 +825,40 @@ export function useImageEditor() {
       }
     }
     
-    // Reload the compressed/resized image back into both canvases
+    // Update both canvases with the compressed/resized image
     if (blob) {
-      const extension = format.split('/')[1]
-      const file = new File([blob], `compressed.${extension}`, { type: format })
-      await loadImage(file)
+      const dataUrl = URL.createObjectURL(blob)
+      const img = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
+        const image = new Image()
+        image.onload = () => resolveImg(image)
+        image.onerror = rejectImg
+        image.src = dataUrl
+      })
+      
+      // Update hidden canvas with the resized content
+      if (!hiddenCanvas.value) {
+        hiddenCanvas.value = document.createElement('canvas')
+      }
+      hiddenCanvas.value.width = img.width
+      hiddenCanvas.value.height = img.height
+      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+      
+      if (hiddenContext.value) {
+        hiddenContext.value.drawImage(img, 0, 0)
+      }
+      
+      // Update original image reference to the resized version
+      originalImage.value = img
+      currentRotationAngle.value = 0
+      
+      // Update reactive dimension tracking
+      hiddenCanvasWidth.value = img.width
+      hiddenCanvasHeight.value = img.height
+      
+      URL.revokeObjectURL(dataUrl)
+      
+      // Update preview
+      await updatePreviewFromHiddenCanvas()
       return true
     }
     
@@ -832,12 +899,12 @@ export function useImageEditor() {
   }
 
   const getCurrentDimensions = (): ImageDimensions | null => {
-    if (!hiddenCanvas.value) return null
+    if (!hiddenCanvas.value || hiddenCanvasWidth.value === 0) return null
     
-    // Return the hidden canvas dimensions (actual image dimensions)
+    // Return the reactive dimension refs (DOM properties aren't reactive)
     return {
-      width: hiddenCanvas.value.width,
-      height: hiddenCanvas.value.height
+      width: hiddenCanvasWidth.value,
+      height: hiddenCanvasHeight.value
     }
   }
 
@@ -945,6 +1012,8 @@ export function useImageEditor() {
     cropArea,
     originalFileFormat,
     originalFileName,
+    hiddenCanvasWidth,
+    hiddenCanvasHeight,
     initCanvas,
     loadImage,
     rotate,

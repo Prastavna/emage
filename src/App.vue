@@ -4,7 +4,6 @@ import ImageUpload from './components/ImageUpload.vue'
 import ImageEditor from './components/ImageEditor.vue'
 import RotationControls from './components/RotationControls.vue'
 import CropControls from './components/CropControls.vue'
-import ResizeControls from './components/ResizeControls.vue'
 import FilterControls from './components/FilterControls.vue'
 import BorderControls from './components/BorderControls.vue'
 import ExportControls from './components/ExportControls.vue'
@@ -106,11 +105,6 @@ const closeDrawer = () => {
             :editor="editorRef.editor"
             @aspect-ratio-change="handleAspectRatioChange"
           />
-
-          <ResizeControls
-            v-if="editorRef?.editor"
-            :editor="editorRef.editor"
-          />
         </div>
 
         <!-- Canvas Area -->
@@ -198,11 +192,6 @@ const closeDrawer = () => {
               v-if="editorRef?.editor"
               :editor="editorRef.editor"
               @aspect-ratio-change="handleAspectRatioChange"
-            />
-
-            <ResizeControls
-              v-if="editorRef?.editor"
-              :editor="editorRef.editor"
             />
           </div>
         </div>

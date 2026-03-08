@@ -5,11 +5,15 @@ import ResizeControls from './ResizeControls.vue'
 describe('ResizeControls Component', () => {
   const mockEditor = {
     resize: vi.fn(),
+    resizeToFileSize: vi.fn().mockResolvedValue(true),
+    reset: vi.fn().mockResolvedValue(undefined),
     getCurrentDimensions: vi.fn().mockReturnValue({ width: 1000, height: 800 }),
     getCurrentFileSize: vi.fn().mockResolvedValue(250.5),
     estimateFileSizeForDimensions: vi.fn().mockResolvedValue(200),
     estimateDimensionsForFileSize: vi.fn().mockResolvedValue({ width: 900, height: 720 }),
-    imageLoaded: { value: true }
+    imageLoaded: { value: true },
+    hiddenCanvasWidth: { value: 1000 },
+    hiddenCanvasHeight: { value: 800 }
   }
 
   it('should render the component', () => {
@@ -26,26 +30,36 @@ describe('ResizeControls Component', () => {
     expect(wrapper.text()).toContain('Resize')
   })
 
-  it('should render width input', () => {
+  it('should render mode tabs', () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.text()).toContain('Dimensions')
+    expect(wrapper.text()).toContain('Target Size')
+  })
+
+  it('should show dimensions mode by default', () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs[0]!.classes()).toContain('tab-active')
+  })
+
+  it('should render width input in dimensions mode', () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
     const inputs = wrapper.findAll('input[type="number"]')
-    expect(inputs.length).toBeGreaterThan(0)
+    expect(inputs.length).toBe(2)
+    expect(wrapper.text()).toContain('Width')
   })
 
-  it('should render height input', () => {
+  it('should render height input in dimensions mode', () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
     expect(wrapper.text()).toContain('Height')
-  })
-
-  it('should render target size input', () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
-    expect(wrapper.text()).toContain('Target Size')
   })
 
   it('should render lock aspect ratio checkbox', () => {
@@ -57,52 +71,58 @@ describe('ResizeControls Component', () => {
     expect(wrapper.text()).toContain('Lock aspect ratio')
   })
 
-  it('should display current dimensions', async () => {
+  it('should initialize width and height from current dimensions', async () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
     await wrapper.vm.$nextTick()
+
+    const inputs = wrapper.findAll('input[type="number"]')
+    expect((inputs[0]!.element as HTMLInputElement).value).toBe('1000')
+    expect((inputs[1]!.element as HTMLInputElement).value).toBe('800')
+  })
+
+  it('should switch to target size mode', async () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
     
-    expect(wrapper.text()).toContain('1000')
-    expect(wrapper.text()).toContain('800')
-  })
-
-  it('should display current file size', async () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
-    await new Promise(resolve => setTimeout(resolve, 100))
-    await wrapper.vm.$nextTick()
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
     
-    expect(wrapper.text()).toMatch(/File Size/)
+    expect(wrapper.text()).toContain('Target Size (KB)')
   })
 
-  it('should render apply resize button', () => {
+  it('should render target size input in filesize mode', async () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
-    const button = wrapper.find('button.btn-primary')
-    expect(button.text()).toContain('Apply Resize')
-  })
-
-  it('should call resize when apply button clicked', async () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
+    
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
     
     const inputs = wrapper.findAll('input[type="number"]')
-    if (inputs.length >= 2) {
-      await inputs[0]!.setValue('800')
-      await inputs[1]!.setValue('600')
-    }
-    
-    const button = wrapper.find('button.btn-primary')
-    await button.trigger('click')
-    
-    expect(mockEditor.resize).toHaveBeenCalled()
+    expect(inputs.length).toBe(1)
   })
 
-  it('should have reset button', () => {
+  it('should not have an Apply Resize button', () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+    const buttons = wrapper.findAll('button')
+    const applyButton = buttons.find(b => b.text().includes('Apply Resize'))
+    expect(applyButton).toBeUndefined()
+  })
+
+  it('should not display dimension preview alerts', () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.find('.alert-info').exists()).toBe(false)
+    expect(wrapper.find('.alert-success').exists()).toBe(false)
+  })
+
+  it('should have reset button in dimensions mode', () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
@@ -111,51 +131,47 @@ describe('ResizeControls Component', () => {
     expect(resetButton).toBeDefined()
   })
 
-  it('should display width label', () => {
+  it('should have reset button in filesize mode', async () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
-    expect(wrapper.text()).toContain('Width')
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
+
+    expect(wrapper.text()).toContain('Reset to original')
   })
 
-  it('should display target size in KB', () => {
+  it('should display width label with px unit', () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
+    expect(wrapper.text()).toContain('Width (px)')
+  })
+
+  it('should display height label with px unit', () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.text()).toContain('Height (px)')
+  })
+
+  it('should display KB in target size mode', async () => {
+    const wrapper = mount(ResizeControls, {
+      props: { editor: mockEditor as any }
+    })
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
+
     expect(wrapper.text()).toContain('KB')
   })
 
-  it('should show info alert for dimensions', () => {
+  it('should have lock aspect ratio checked by default', () => {
     const wrapper = mount(ResizeControls, {
       props: { editor: mockEditor as any }
     })
-    const alert = wrapper.find('.alert-info')
-    expect(alert.exists()).toBe(true)
-  })
-
-  it('should show success alert for file size', async () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
-    await new Promise(resolve => setTimeout(resolve, 100))
-    await wrapper.vm.$nextTick()
-    
-    const alert = wrapper.find('.alert-success')
-    expect(alert.exists()).toBe(true)
-  })
-
-  it('should have numeric inputs with placeholders', () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
-    const inputs = wrapper.findAll('input[type="number"]')
-    expect(inputs.length).toBeGreaterThan(2)
-  })
-
-  it('should display pixel unit', () => {
-    const wrapper = mount(ResizeControls, {
-      props: { editor: mockEditor as any }
-    })
-    expect(wrapper.text()).toContain('px')
+    const checkbox = wrapper.find('input[type="checkbox"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
   })
 })

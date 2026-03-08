@@ -2,16 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ExportControls from './ExportControls.vue'
 
+const createMockEditor = (overrides: Record<string, any> = {}) => ({
+  downloadImage: vi.fn(),
+  resize: vi.fn(),
+  resizeToFileSize: vi.fn().mockResolvedValue(true),
+  reset: vi.fn().mockResolvedValue(undefined),
+  getCurrentDimensions: vi.fn().mockReturnValue({ width: 1000, height: 800 }),
+  getCurrentFileSize: vi.fn().mockResolvedValue(250.5),
+  estimateFileSizeForDimensions: vi.fn().mockResolvedValue(200),
+  estimateDimensionsForFileSize: vi.fn().mockResolvedValue({ width: 900, height: 720 }),
+  imageLoaded: { value: true },
+  originalFileFormat: { value: 'image/jpeg' },
+  originalFileName: { value: 'test-image' },
+  hiddenCanvasWidth: { value: 1000 },
+  hiddenCanvasHeight: { value: 800 },
+  ...overrides
+})
+
 describe('ExportControls Component', () => {
-  const mockEditor = {
-    downloadImage: vi.fn(),
-    imageLoaded: { value: true },
-    originalFileFormat: { value: 'image/jpeg' },
-    originalFileName: { value: 'test-image' }
-  }
-  
+  let mockEditor: ReturnType<typeof createMockEditor>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEditor = createMockEditor()
   })
 
   it('should render the component', () => {
@@ -58,7 +71,7 @@ describe('ExportControls Component', () => {
     })
     const options = wrapper.findAll('option')
     const values = options.map(o => o.element.value)
-    
+
     expect(values).toContain('image/png')
     expect(values).toContain('image/jpeg')
     expect(values).toContain('image/webp')
@@ -68,10 +81,10 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/jpeg')
-    
+
     const slider = wrapper.find('input[type="range"]')
     expect(slider.exists()).toBe(true)
   })
@@ -80,11 +93,11 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/png')
     await wrapper.vm.$nextTick()
-    
+
     const slider = wrapper.find('input[type="range"]')
     expect(slider.exists()).toBe(false)
   })
@@ -93,11 +106,11 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/webp')
     await wrapper.vm.$nextTick()
-    
+
     const slider = wrapper.find('input[type="range"]')
     expect(slider.exists()).toBe(true)
   })
@@ -106,11 +119,11 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/jpeg')
     await wrapper.vm.$nextTick()
-    
+
     const slider = wrapper.find('input[type="range"]')
     expect(slider.attributes('min')).toBe('0.1')
     expect(slider.attributes('max')).toBe('1')
@@ -121,7 +134,7 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    const button = wrapper.find('button')
+    const button = wrapper.find('.btn-success')
     expect(button.text()).toContain('Download Image')
   })
 
@@ -129,9 +142,9 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    const button = wrapper.find('button')
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
+
     expect(mockEditor.downloadImage).toHaveBeenCalled()
   })
 
@@ -139,11 +152,11 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/jpeg')
     await wrapper.vm.$nextTick()
-    
+
     const badge = wrapper.find('.badge')
     expect(badge.text()).toMatch(/\d+%/)
   })
@@ -152,7 +165,7 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     expect(wrapper.text()).toContain('Filename')
     expect(wrapper.text()).toContain('Format')
   })
@@ -170,7 +183,7 @@ describe('ExportControls Component', () => {
       props: { editor: mockEditor as any }
     })
     const input = wrapper.find('input[type="text"]')
-    
+
     await input.setValue('my-custom-image')
     expect((input.element as HTMLInputElement).value).toBe('my-custom-image')
   })
@@ -179,14 +192,136 @@ describe('ExportControls Component', () => {
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     const select = wrapper.find('select')
     await select.setValue('image/jpeg')
     await wrapper.vm.$nextTick()
-    
+
     expect(wrapper.text()).toContain('Quality')
     expect(wrapper.text()).toContain('Lower')
     expect(wrapper.text()).toContain('Higher')
+  })
+})
+
+describe('ExportControls - Resize Section', () => {
+  let mockEditor: ReturnType<typeof createMockEditor>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockEditor = createMockEditor()
+  })
+
+  it('should render resize divider', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.text()).toContain('Resize')
+  })
+
+  it('should render resize mode tabs', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.text()).toContain('Dimensions')
+    expect(wrapper.text()).toContain('Target Size')
+  })
+
+  it('should show dimensions mode by default', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs[0]!.classes()).toContain('tab-active')
+  })
+
+  it('should render width and height inputs in dimensions mode', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    expect(wrapper.text()).toContain('Width (px)')
+    expect(wrapper.text()).toContain('Height (px)')
+  })
+
+  it('should render lock aspect ratio checkbox', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    const checkbox = wrapper.find('input[type="checkbox"]')
+    expect(checkbox.exists()).toBe(true)
+    expect(wrapper.text()).toContain('Lock aspect ratio')
+  })
+
+  it('should have lock aspect ratio checked by default', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    const checkbox = wrapper.find('input[type="checkbox"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('should initialize width and height from current dimensions', async () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    await wrapper.vm.$nextTick()
+
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    expect((numberInputs[0]!.element as HTMLInputElement).value).toBe('1000')
+    expect((numberInputs[1]!.element as HTMLInputElement).value).toBe('800')
+  })
+
+  it('should switch to target size mode', async () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
+
+    expect(wrapper.text()).toContain('Target Size (KB)')
+  })
+
+  it('should render target size input in filesize mode', async () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
+
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    expect(numberInputs.length).toBe(1)
+  })
+
+  it('should have reset button in dimensions mode', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    const buttons = wrapper.findAll('button')
+    const resetButton = buttons.find(b => b.attributes('title') === 'Reset to original')
+    expect(resetButton).toBeDefined()
+  })
+
+  it('should have reset button in filesize mode', async () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs[1]!.trigger('click')
+
+    const buttons = wrapper.findAll('button')
+    const resetButton = buttons.find(b => b.attributes('title') === 'Reset to original')
+    expect(resetButton).toBeDefined()
+  })
+
+  it('should not have an Apply Resize button', () => {
+    const wrapper = mount(ExportControls, {
+      props: { editor: mockEditor as any }
+    })
+    const buttons = wrapper.findAll('button')
+    const applyButton = buttons.find(b => b.text().includes('Apply Resize'))
+    expect(applyButton).toBeUndefined()
   })
 })
 
@@ -196,76 +331,60 @@ describe('ExportControls - Filename with Timestamp', () => {
   })
 
   it('should set filename from originalFileName when image loads', async () => {
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'vacation-photo' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
+
     const input = wrapper.find('input[type="text"]')
     expect((input.element as HTMLInputElement).value).toBe('vacation-photo')
   })
 
   it('should add timestamp to filename when download is clicked and user has not changed filename', async () => {
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'vacation-photo' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
-    // Click download without changing filename
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
-    // downloadImage should be called with filename-timestamp format
+
     expect(mockEditor.downloadImage).toHaveBeenCalled()
     const callArgs = mockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
       const filename = callArgs[0] as string
-      
-      // Should match pattern: vacation-photo-YYYYMMDD-HHMMSS.jpg
       expect(filename).toMatch(/^vacation-photo-\d{8}-\d{6}\.jpg$/)
     }
   })
 
   it('should NOT add timestamp when user manually changes filename', async () => {
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'vacation-photo' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
-    // User changes filename
+
     const input = wrapper.find('input[type="text"]')
     await input.setValue('my-custom-name')
     await input.trigger('input')
-    
-    // Click download
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
-    // downloadImage should be called with exact custom filename (no timestamp)
+
     expect(mockEditor.downloadImage).toHaveBeenCalled()
     const callArgs = mockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
@@ -275,29 +394,23 @@ describe('ExportControls - Filename with Timestamp', () => {
   })
 
   it('should add timestamp if user clears and re-enters the original filename', async () => {
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'vacation-photo' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
-    // User types (even if same value, it's considered manual input)
+
     const input = wrapper.find('input[type="text"]')
     await input.setValue('vacation-photo')
     await input.trigger('input')
-    
-    // Click download
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
-    // Should NOT add timestamp because user manually typed
+
     expect(mockEditor.downloadImage).toHaveBeenCalled()
     const callArgs = mockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
@@ -307,101 +420,80 @@ describe('ExportControls - Filename with Timestamp', () => {
   })
 
   it('should format timestamp correctly (YYYYMMDD-HHMMSS)', async () => {
-    // Mock date
     const mockDate = new Date('2026-03-07T14:30:45')
     vi.setSystemTime(mockDate)
-    
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'vacation-photo' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
-    // Click download
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
+
     expect(mockEditor.downloadImage).toHaveBeenCalled()
     const callArgs = mockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
       const filename = callArgs[0] as string
-      
-      // Should be: vacation-photo-20260307-143045.jpg
       expect(filename).toBe('vacation-photo-20260307-143045.jpg')
     }
-    
+
     vi.useRealTimers()
   })
 
   it('should reset userChangedFilename flag when new image is loaded', async () => {
-    // This test needs reactive refs to test watch behavior properly
-    // For now, we'll skip testing the re-load scenario as it's complex with mount()
-    // The functionality works in the actual component
     expect(true).toBe(true)
   })
 
   it('should handle different image formats correctly', async () => {
-    const pngMockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
+    const pngMockEditor = createMockEditor({
       originalFileFormat: { value: 'image/png' },
       originalFileName: { value: 'screenshot' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: pngMockEditor as any }
     })
-    
+
     await wrapper.vm.$nextTick()
-    
-    // Click download
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     await button.trigger('click')
-    
+
     expect(pngMockEditor.downloadImage).toHaveBeenCalled()
     const callArgs = pngMockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
       const filename = callArgs[0] as string
-      
-      // Should have .png extension with timestamp
       expect(filename).toMatch(/^screenshot-\d{8}-\d{6}\.png$/)
     }
   })
-  
+
   it('should generate timestamp in correct format', () => {
-    // Mock date
     const mockDate = new Date('2026-03-07T09:05:03')
     vi.setSystemTime(mockDate)
-    
-    const mockEditor = {
-      downloadImage: vi.fn(),
-      imageLoaded: { value: true },
-      originalFileFormat: { value: 'image/jpeg' },
+
+    const mockEditor = createMockEditor({
       originalFileName: { value: 'test' }
-    }
-    
+    })
+
     const wrapper = mount(ExportControls, {
       props: { editor: mockEditor as any }
     })
-    
-    // Trigger download to test timestamp generation
-    const button = wrapper.find('button')
+
+    const button = wrapper.find('.btn-success')
     button.trigger('click')
-    
+
     const callArgs = mockEditor.downloadImage.mock.calls[0]
     if (callArgs) {
       const filename = callArgs[0] as string
-      // Should be: test-20260307-090503.jpg
       expect(filename).toMatch(/^test-20260307-090503\.jpg$/)
     }
-    
+
     vi.useRealTimers()
   })
 })

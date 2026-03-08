@@ -15,9 +15,6 @@ vi.mock('./components/RotationControls.vue', () => ({
 vi.mock('./components/CropControls.vue', () => ({
   default: { name: 'CropControls', template: '<div>CropControls</div>' }
 }))
-vi.mock('./components/ResizeControls.vue', () => ({
-  default: { name: 'ResizeControls', template: '<div>ResizeControls</div>' }
-}))
 vi.mock('./components/FilterControls.vue', () => ({
   default: { name: 'FilterControls', template: '<div>FilterControls</div>' }
 }))
