@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: emage-app
     ports:
-      - "3000:80"
+      - "4001:80"
     restart: unless-stopped
     labels:
       - "com.docker.compose.project=emage"

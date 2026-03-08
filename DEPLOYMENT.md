@@ -8,7 +8,7 @@ The simplest way to deploy emage:
 docker-compose up -d
 ```
 
-Access the application at: `http://localhost:3000`
+Access the application at: `http://localhost:4001`
 
 ## Docker Deployment Options
 
@@ -45,7 +45,7 @@ docker build -t emage:latest .
 ```bash
 docker run -d \
   --name emage-app \
-  -p 3000:80 \
+  -p 4001:80 \
   --restart unless-stopped \
   emage:latest
 ```
@@ -63,7 +63,7 @@ docker rm emage-app
 
 ## Port Configuration
 
-By default, the application runs on port 3000. To use a different port:
+By default, the application runs on port 4001. To use a different port:
 
 **Docker Compose:**
 Edit `docker-compose.yml` and change the ports mapping:
@@ -90,7 +90,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:4001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -105,7 +105,7 @@ services:
   emage:
     build: .
     ports:
-      - "127.0.0.1:3000:80"  # Only accessible locally
+      - "127.0.0.1:4001:80"  # Only accessible locally
 ```
 
 ### With SSL/HTTPS
@@ -171,7 +171,7 @@ git pull
 docker stop emage-app
 docker rm emage-app
 docker build -t emage:latest .
-docker run -d -p 3000:80 --name emage-app emage:latest
+docker run -d -p 4001:80 --name emage-app emage:latest
 ```
 
 ## Troubleshooting
@@ -183,11 +183,11 @@ docker logs emage-app
 
 **Port already in use:**
 ```bash
-# Check what's using port 3000
-lsof -i :3000
-
-# Use a different port
-docker run -d -p 3001:80 --name emage-app emage:latest
+  # Check what's using port 4001
+  lsof -i :4001
+  
+  # Use a different port
+  docker run -d -p 4002:80 --name emage-app emage:latest
 ```
 
 **Build fails:**
@@ -226,10 +226,10 @@ docker exec emage-app tail -f /var/log/nginx/access.log
 4. Limit container resources:
    ```bash
    docker run -d \
-     --memory="512m" \
-     --cpus="1" \
-     -p 3000:80 \
-     emage:latest
+      --memory="512m" \
+      --cpus="1" \
+      -p 4001:80 \
+      emage:latest
    ```
 
 ## Cloud Deployment

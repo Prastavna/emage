@@ -143,7 +143,7 @@ The built files will be in the `dist` directory.
 # Build and start
 docker-compose up -d
 
-# Access at http://localhost:3000
+# Access at http://localhost:4001
 ```
 
 #### Using Docker CLI
@@ -153,7 +153,7 @@ docker-compose up -d
 docker build -t emage .
 
 # Run container
-docker run -d -p 3000:80 --name emage-app emage
+docker run -d -p 4001:80 --name emage-app emage
 ```
 
 For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)

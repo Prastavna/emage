@@ -15,9 +15,9 @@ That's it! No installation required.
 
 **Option 1: Docker (Easiest)**
 ```bash
-docker run -d -p 3000:80 ghcr.io/Prastavna/emage:latest
+docker run -d -p 4001:80 ghcr.io/Prastavna/emage:latest
 ```
-Visit `http://localhost:3000`
+Visit `http://localhost:4001`
 
 **Option 2: Docker Compose**
 ```bash
