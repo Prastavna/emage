@@ -58,12 +58,12 @@ export function useImageEditor() {
   const originalFileFormat = ref<string>('image/jpeg')
   const originalFileName = ref<string>('edited-image')
 
-  const initCanvas = (canvasElement: HTMLCanvasElement) => {
+  const initCanvas = (canvasElement: HTMLCanvasElement, width: number = 800, height: number = 600) => {
     canvas.value = new Canvas(canvasElement, {
       backgroundColor: '#f0f0f0',
       selection: false,
-      width: 800,
-      height: 600
+      width,
+      height
     })
   }
 
@@ -117,14 +117,14 @@ export function useImageEditor() {
             canvas.value.clear()
             
             // Scale image to fit canvas while maintaining aspect ratio
-            const maxWidth = 800
-            const maxHeight = 600
+            const canvasWidth = canvas.value.getWidth()
+            const canvasHeight = canvas.value.getHeight()
             const imgWidth = fabricImg.width
             const imgHeight = fabricImg.height
             
             const scale = Math.min(
-              maxWidth / imgWidth,
-              maxHeight / imgHeight,
+              canvasWidth / imgWidth,
+              canvasHeight / imgHeight,
               1
             )
             
@@ -141,8 +141,8 @@ export function useImageEditor() {
             // Center the image on canvas
             // Using top-left positioning (Fabric.js default origin)
             fabricImg.set({
-              left: (maxWidth - scaledWidth) / 2,
-              top: (maxHeight - scaledHeight) / 2,
+              left: (canvasWidth - scaledWidth) / 2,
+              top: (canvasHeight - scaledHeight) / 2,
               originX: 'left',
               originY: 'top',
               selectable: false,
@@ -572,14 +572,14 @@ export function useImageEditor() {
       canvas.value.clear()
 
       // Scale image to fit canvas while maintaining aspect ratio
-      const maxWidth = 800
-      const maxHeight = 600
+      const canvasWidth = canvas.value.getWidth()
+      const canvasHeight = canvas.value.getHeight()
       const imgWidth = fabricImg.width
       const imgHeight = fabricImg.height
 
       const scale = Math.min(
-        maxWidth / imgWidth,
-        maxHeight / imgHeight,
+        canvasWidth / imgWidth,
+        canvasHeight / imgHeight,
         1
       )
 
@@ -592,8 +592,8 @@ export function useImageEditor() {
       const scaledHeight = imgHeight * scale
 
       fabricImg.set({
-        left: (maxWidth - scaledWidth) / 2,
-        top: (maxHeight - scaledHeight) / 2,
+        left: (canvasWidth - scaledWidth) / 2,
+        top: (canvasHeight - scaledHeight) / 2,
         originX: 'left',
         originY: 'top',
         selectable: false,

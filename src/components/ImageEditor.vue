@@ -15,25 +15,51 @@ const canvasReady = ref(false)
 const canvasContainer = ref<HTMLDivElement | null>(null)
 const canvasDimensions = ref({ width: 800, height: 600 })
 
-const updateCanvasSize = () => {
-  if (!canvasContainer.value) return
-  
+const getCanvasSize = () => {
+  if (!canvasContainer.value) return { width: 800, height: 600 }
+
   const containerWidth = canvasContainer.value.clientWidth
-  const maxWidth = Math.min(containerWidth - 32, 800) // 32px for padding
+  const maxWidth = Math.min(containerWidth, 800)
   const aspectRatio = 4 / 3 // 800:600 ratio
   const height = maxWidth / aspectRatio
-  
-  canvasDimensions.value = {
-    width: maxWidth,
-    height: height
-  }
-  
-  // Update canvas size if already initialized
+
+  return { width: maxWidth, height }
+}
+
+const updateCanvasSize = () => {
+  const size = getCanvasSize()
+  canvasDimensions.value = size
+
+  // Update Fabric canvas size and re-layout the image
   if (editor.canvas.value && canvasReady.value) {
     editor.canvas.value.setDimensions({
-      width: maxWidth,
-      height: height
+      width: size.width,
+      height: size.height
     })
+
+    // Re-layout image to fit new canvas size
+    if (editor.fabricImage.value) {
+      const img = editor.fabricImage.value
+      const imgWidth = img.width
+      const imgHeight = img.height
+
+      const scale = Math.min(
+        size.width / imgWidth,
+        size.height / imgHeight,
+        1
+      )
+
+      const scaledWidth = imgWidth * scale
+      const scaledHeight = imgHeight * scale
+
+      img.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: (size.width - scaledWidth) / 2,
+        top: (size.height - scaledHeight) / 2
+      })
+    }
+
     editor.canvas.value.renderAll()
   }
 }
@@ -46,13 +72,14 @@ const imageBounds = computed(() => {
 })
 
 onMounted(() => {
-  updateCanvasSize()
-  
+  const size = getCanvasSize()
+  canvasDimensions.value = size
+
   if (canvasRef.value) {
-    editor.initCanvas(canvasRef.value)
+    editor.initCanvas(canvasRef.value, size.width, size.height)
     canvasReady.value = true
   }
-  
+
   // Add resize listener
   window.addEventListener('resize', updateCanvasSize)
 })
@@ -86,7 +113,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="w-full flex justify-center px-4">
+  <div class="w-full flex justify-center">
     <div ref="canvasContainer" class="relative w-full max-w-[800px]">
       <canvas
         ref="canvasRef"

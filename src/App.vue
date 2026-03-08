@@ -50,7 +50,7 @@ const closeDrawer = () => {
       </div>
     </div>
 
-    <div class="container mx-auto p-4 md:p-6">
+    <div class="container mx-auto p-2 sm:p-4 md:p-6">
       <!-- Upload Section -->
       <div v-if="!selectedFile" class="max-w-2xl mx-auto">
         <div class="text-center mb-6">
@@ -63,7 +63,7 @@ const closeDrawer = () => {
       </div>
 
       <!-- Editor Section -->
-      <div v-else class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div v-else class="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         <!-- Sidebar Controls - Desktop -->
         <div class="hidden lg:block lg:col-span-1 space-y-4">
           <div class="card bg-base-100 shadow-md">
@@ -108,9 +108,9 @@ const closeDrawer = () => {
         </div>
 
         <!-- Canvas Area -->
-        <div class="col-span-1 lg:col-span-3">
-          <div class="card bg-base-100 shadow-lg">
-            <div class="card-body">
+        <div class="col-span-1 lg:col-span-3 min-w-0">
+          <div class="card bg-base-100 shadow-lg overflow-hidden">
+            <div class="card-body p-2 sm:p-4 md:p-6">
               <ImageEditor
                 ref="editorRef"
                 :file="selectedFile"
