@@ -79,9 +79,12 @@ const cropStyle = computed(() => ({
   height: `${cropRect.value.height}px`
 }))
 
-const handleMouseDown = (e: MouseEvent, handle?: string) => {
+const handlePointerDown = (e: PointerEvent, handle?: string) => {
   e.preventDefault()
   e.stopPropagation()
+  
+  // Capture the pointer so we receive move/up events even if finger leaves the element
+  ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
   
   if (handle) {
     isResizing.value = true
@@ -93,7 +96,7 @@ const handleMouseDown = (e: MouseEvent, handle?: string) => {
   dragStart.value = { x: e.clientX, y: e.clientY }
 }
 
-const handleMouseMove = (e: MouseEvent) => {
+const handlePointerMove = (e: PointerEvent) => {
   if (!isDragging.value && !isResizing.value) return
   
   const deltaX = e.clientX - dragStart.value.x
@@ -165,20 +168,20 @@ const handleMouseMove = (e: MouseEvent) => {
   emit('update', cropRect.value)
 }
 
-const handleMouseUp = () => {
+const handlePointerUp = () => {
   isDragging.value = false
   isResizing.value = false
   resizeHandle.value = ''
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
+  document.addEventListener('pointermove', handlePointerMove)
+  document.addEventListener('pointerup', handlePointerUp)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
+  document.removeEventListener('pointermove', handlePointerMove)
+  document.removeEventListener('pointerup', handlePointerUp)
 })
 </script>
 
@@ -207,8 +210,8 @@ onUnmounted(() => {
     <!-- Crop box -->
     <div 
       :style="cropStyle"
-      class="absolute border-2 border-white pointer-events-auto cursor-move"
-      @mousedown="handleMouseDown($event)"
+      class="absolute border-2 border-white pointer-events-auto cursor-move touch-none"
+      @pointerdown="handlePointerDown($event)"
     >
       <!-- Grid lines -->
       <div class="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
@@ -218,37 +221,37 @@ onUnmounted(() => {
       <!-- Corner handles -->
       <div 
         class="absolute -top-3 -left-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-nw-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'nw')"
+        @pointerdown.stop="handlePointerDown($event, 'nw')"
       ></div>
       <div 
         class="absolute -top-3 -right-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-ne-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'ne')"
+        @pointerdown.stop="handlePointerDown($event, 'ne')"
       ></div>
       <div 
         class="absolute -bottom-3 -left-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-sw-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'sw')"
+        @pointerdown.stop="handlePointerDown($event, 'sw')"
       ></div>
       <div 
         class="absolute -bottom-3 -right-3 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-se-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'se')"
+        @pointerdown.stop="handlePointerDown($event, 'se')"
       ></div>
       
       <!-- Edge handles -->
       <div 
         class="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-n-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'n')"
+        @pointerdown.stop="handlePointerDown($event, 'n')"
       ></div>
       <div 
         class="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-s-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 's')"
+        @pointerdown.stop="handlePointerDown($event, 's')"
       ></div>
       <div 
         class="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-w-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'w')"
+        @pointerdown.stop="handlePointerDown($event, 'w')"
       ></div>
       <div 
         class="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 md:w-8 md:h-8 bg-white border-2 border-primary rounded-full cursor-e-resize touch-none"
-        @mousedown.stop="handleMouseDown($event, 'e')"
+        @pointerdown.stop="handlePointerDown($event, 'e')"
       ></div>
     </div>
   </div>
