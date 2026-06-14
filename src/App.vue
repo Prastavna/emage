@@ -108,7 +108,7 @@ const closeDrawer = () => {
         </div>
 
         <!-- Canvas Area -->
-        <div class="col-span-1 lg:col-span-3 min-w-0">
+        <div class="col-span-1 lg:col-span-3 min-w-0 lg:sticky lg:top-6 lg:self-start">
           <div class="card bg-base-100 shadow-lg overflow-hidden">
             <div class="card-body p-2 sm:p-4 md:p-6">
               <ImageEditor
