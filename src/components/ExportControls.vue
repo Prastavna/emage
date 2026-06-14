@@ -19,7 +19,7 @@ const resizeMode = ref<ResizeMode>('dimensions')
 const width = ref<number>(0)
 const height = ref<number>(0)
 const lockAspectRatio = ref(true)
-const targetFileSize = ref<number>(100)
+const targetFileSize = ref<number>(0)
 const isResizing = ref(false)
 const originalAspectRatio = ref(1)
 const estimatedFileSize = ref<number | null>(null)
@@ -98,6 +98,15 @@ const handleFileSizeChange = () => {
   fileSizeTimeout = window.setTimeout(() => { runFileSizeResize() }, 600)
 }
 
+// Switching into Target Size mode must apply the (default) target immediately.
+// Otherwise the field shows 100 KB but no resize ran, so download exports the
+// full-size image until the user manually edits the value.
+const selectFileSizeMode = () => {
+  resizeMode.value = 'filesize'
+  if (fileSizeTimeout) clearTimeout(fileSizeTimeout)
+  runFileSizeResize()
+}
+
 // Runs the target-size search in the CURRENT export format, so the cached blob
 // the editor keeps matches the format the download will request — that match is
 // what makes the downloaded file land at the requested size.
@@ -130,6 +139,10 @@ const resetToOriginal = async () => {
   isResizing.value = true
   await props.editor.reset()
   updateFromCurrent()
+  const originalBytes = props.editor.originalFile.value?.size
+  if (originalBytes) {
+    targetFileSize.value = Math.round(originalBytes / 1024)
+  }
   estimatedFileSize.value = null
   estimatedDimensions.value = null
   achievedFileSize.value = null
@@ -186,6 +199,13 @@ watch(() => props.editor.imageLoaded.value, async (loaded) => {
 
     // Resize init
     updateFromCurrent()
+
+    // Default the target size to the original file's size, so "Target Size"
+    // starts as a no-op the user can dial down from.
+    const originalBytes = props.editor.originalFile?.value?.size
+    if (originalBytes) {
+      targetFileSize.value = Math.round(originalBytes / 1024)
+    }
   }
 }, { immediate: true })
 
@@ -266,7 +286,7 @@ onMounted(() => {
             role="tab"
             class="tab w-1/2"
             :class="{ 'tab-active': resizeMode === 'filesize' }"
-            @click="resizeMode = 'filesize'"
+            @click="selectFileSizeMode"
           >
             Target Size
           </a>

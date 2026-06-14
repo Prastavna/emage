@@ -53,6 +53,12 @@ const resetFilters = () => {
   saturation.value = 0
   grayscale.value = false
 }
+
+// When the editor reloads/resets the base image, mirror its cleared state in the
+// sliders so the UI matches what's actually applied.
+watch(() => props.editor.resetSignal.value, () => {
+  resetFilters()
+})
 </script>
 
 <template>

@@ -25,6 +25,11 @@ const resetRotation = () => {
   rotationAngle.value = 0
 }
 
+// Mirror the editor's cleared rotation when the base image is reloaded/reset.
+watch(() => props.editor.resetSignal.value, () => {
+  rotationAngle.value = 0
+})
+
 const handleFlipHorizontal = () => {
   props.editor.flipHorizontal()
 }

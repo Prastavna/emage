@@ -8,6 +8,7 @@ describe('FilterControls Component', () => {
     setContrast: vi.fn(),
     setSaturation: vi.fn(),
     toggleGrayscale: vi.fn(),
+    resetSignal: { value: 0 },
     currentFilters: {
       value: {
         brightness: 0,

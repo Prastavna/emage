@@ -116,6 +116,15 @@ const resetBorder = () => {
   props.editor.removeBorder()
 }
 
+// When the editor reloads/resets the base image it already drops the border, so
+// just mirror that in the local controls (no need to call removeBorder again).
+watch(() => props.editor.resetSignal.value, () => {
+  borderWidth.value = 0
+  borderColor.value = '#000000'
+  borderStyle.value = 'solid'
+  borderRadius.value = 0
+})
+
 onMounted(() => {
   loadRecentColors()
 })

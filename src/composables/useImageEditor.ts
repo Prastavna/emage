@@ -88,6 +88,17 @@ export function useImageEditor() {
   const originalFileFormat = ref<string>('image/jpeg')
   const originalFileName = ref<string>('edited-image')
 
+  // The pristine file the user actually loaded. `originalImage`/`originalFile`
+  // get rebased by resize/crop (they track the current working base), so they
+  // can't serve "reset to original". This ref is captured only on a genuine
+  // user load and is what reset() restores from.
+  const pristineFile = shallowRef<File | null>(null)
+
+  // Bumped whenever the base image is (re)loaded — fresh load, reset, or crop.
+  // Control panels watch this to re-sync their local slider/toggle state with
+  // the editor's freshly-cleared transform state.
+  const resetSignal = ref(0)
+
   // Exact bytes produced by the last target-file-size operation. When present
   // and the requested export format matches, download/size queries serve these
   // bytes verbatim instead of re-encoding (which would change the size and
@@ -108,18 +119,32 @@ export function useImageEditor() {
     })
   }
 
-  const loadImage = async (file: File): Promise<void> => {
+  // `isOriginalLoad` marks a genuine user-initiated load (vs. internal reloads
+  // from crop/reset). Only genuine loads capture the pristine file and reset the
+  // transform state.
+  const loadImage = async (file: File, isOriginalLoad: boolean = true): Promise<void> => {
     invalidateExportBlob()
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
-      
+
       reader.onload = async (e) => {
         try {
           const dataUrl = e.target?.result as string
-          
+
           // Store original file and format
           originalFile.value = file
           originalFileFormat.value = file.type || 'image/jpeg'
+          if (isOriginalLoad) {
+            pristineFile.value = file
+          }
+
+          // A fresh base image carries no rotation/border; clear so later
+          // filter/rotation reconstruction doesn't re-apply stale transforms.
+          currentRotationAngle.value = 0
+          currentBorder.value = null
+
+          // Tell the control panels to drop their stale local state.
+          resetSignal.value++
           
           // Extract filename without extension
           const fileName = file.name.replace(/\.[^/.]+$/, '')
@@ -730,7 +755,9 @@ export function useImageEditor() {
       tempCanvas.toBlob(async (blob) => {
         if (blob) {
           const file = new File([blob], 'cropped.png', { type: 'image/png' })
-          await loadImage(file)
+          // Crop rebases the working image but keeps the pristine original, so
+          // "reset to original" still un-does the crop.
+          await loadImage(file, false)
           exitCropMode()
         }
       })
@@ -930,10 +957,10 @@ export function useImageEditor() {
   }
 
   const reset = async () => {
-    if (originalImage.value && canvas.value) {
-      const blob = await fetch(originalImage.value.src).then(r => r.blob())
-      const file = new File([blob], 'original.png', { type: 'image/png' })
-      await loadImage(file)
+    // Restore the pristine file the user loaded — not originalImage, which
+    // resize/crop rebase to the current working image.
+    if (pristineFile.value && canvas.value) {
+      await loadImage(pristineFile.value, false)
     }
   }
 
@@ -1027,8 +1054,10 @@ export function useImageEditor() {
     currentFilters,
     cropMode,
     cropArea,
+    originalFile,
     originalFileFormat,
     originalFileName,
+    resetSignal,
     hiddenCanvasWidth,
     hiddenCanvasHeight,
     initCanvas,

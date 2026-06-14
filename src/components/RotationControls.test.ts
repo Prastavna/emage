@@ -7,6 +7,7 @@ describe('RotationControls Component', () => {
     setRotation: vi.fn(),
     flipHorizontal: vi.fn(),
     flipVertical: vi.fn(),
+    resetSignal: { value: 0 },
     imageLoaded: { value: true }
   }
 
