@@ -31,12 +31,35 @@ function htmlImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   })
 }
 
+/** One-click artistic "look" presets, each a fixed Fabric ColorMatrix filter. */
+export type FilterPreset = '' | 'vintage' | 'kodachrome' | 'technicolor' | 'polaroid' | 'brownie'
+
 export interface ImageFilters {
   brightness: number
   contrast: number
   saturation: number
   grayscale: boolean
+  /** Sepia tone toggle. */
+  sepia: boolean
+  /** Invert (negative) colors toggle. */
+  invert: boolean
+  /** Hue rotation in degrees, -180..180. */
+  hue: number
+  /** Artistic look preset (mutually exclusive). */
+  preset: FilterPreset
 }
+
+/** The neutral filter state — no adjustments applied. */
+const defaultFilters = (): ImageFilters => ({
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  grayscale: false,
+  sepia: false,
+  invert: false,
+  hue: 0,
+  preset: ''
+})
 
 export interface BorderSettings {
   width: number
@@ -63,12 +86,7 @@ export function useImageEditor() {
   const imageLoaded = ref(false)
   const cropMode = ref(false)
   const cropArea = ref<CropArea>({ x: 0, y: 0, width: 0, height: 0 })
-  const currentFilters = ref<ImageFilters>({
-    brightness: 0,
-    contrast: 0,
-    saturation: 0,
-    grayscale: false
-  })
+  const currentFilters = ref<ImageFilters>(defaultFilters())
   
   const currentBorder = ref<BorderSettings | null>(null)
   
@@ -229,12 +247,7 @@ export function useImageEditor() {
             imageLoaded.value = true
             
             // Reset filters
-            currentFilters.value = {
-              brightness: 0,
-              contrast: 0,
-              saturation: 0,
-              grayscale: false
-            }
+            currentFilters.value = defaultFilters()
           }
           
           resolve()
@@ -372,6 +385,34 @@ export function useImageEditor() {
     }
   }
 
+  /**
+   * Build the "advanced" Fabric filters (presets, sepia, hue, invert) from the
+   * current filter state. The SAME instances drive both the preview (Fabric
+   * applies them on the canvas) and the export hidden canvas (applied via
+   * `applyTo2d`), so the downloaded image matches the preview exactly.
+   *
+   * These are all ColorMatrix-based — single-pass and backend-independent, so
+   * the 2D and WebGL paths produce identical pixels (unlike e.g. Blur).
+   */
+  const buildAdvancedFilters = (): InstanceType<typeof filters.BaseFilter>[] => {
+    const f = currentFilters.value
+    const arr: InstanceType<typeof filters.BaseFilter>[] = []
+
+    switch (f.preset) {
+      case 'vintage': arr.push(new filters.Vintage()); break
+      case 'kodachrome': arr.push(new filters.Kodachrome()); break
+      case 'technicolor': arr.push(new filters.Technicolor()); break
+      case 'polaroid': arr.push(new filters.Polaroid()); break
+      case 'brownie': arr.push(new filters.Brownie()); break
+    }
+
+    if (f.sepia) arr.push(new filters.Sepia())
+    if (f.hue !== 0) arr.push(new filters.HueRotation({ rotation: f.hue / 180 }))
+    if (f.invert) arr.push(new filters.Invert())
+
+    return arr
+  }
+
   const applyFilters = () => {
     invalidateExportBlob()
     if (!fabricImage.value || !hiddenCanvas.value || !hiddenContext.value) return
@@ -400,6 +441,9 @@ export function useImageEditor() {
       filterArray.push(new filters.Grayscale())
     }
 
+    // Artistic presets / sepia / hue / invert (applied after the basic adjustments)
+    filterArray.push(...buildAdvancedFilters())
+
     // Apply to preview canvas
     fabricImage.value.filters = filterArray
     fabricImage.value.applyFilters()
@@ -416,18 +460,20 @@ export function useImageEditor() {
    */
   const applyFiltersToHiddenCanvas = () => {
     if (!hiddenCanvas.value || !hiddenContext.value) return
-    
-    const hasFilters = currentFilters.value.brightness !== 0 ||
+
+    const hasBasicFilters = currentFilters.value.brightness !== 0 ||
       currentFilters.value.contrast !== 0 ||
       currentFilters.value.saturation !== 0 ||
       currentFilters.value.grayscale
-    
-    if (!hasFilters) return
-    
+
+    const advancedFilters = buildAdvancedFilters()
+
+    if (!hasBasicFilters && advancedFilters.length === 0) return
+
     const imageData = hiddenContext.value.getImageData(0, 0, hiddenCanvas.value.width, hiddenCanvas.value.height)
     const data = imageData.data
-    
-    for (let i = 0; i < data.length; i += 4) {
+
+    if (hasBasicFilters) for (let i = 0; i < data.length; i += 4) {
       let r: number = data[i] ?? 0
       let g: number = data[i + 1] ?? 0
       let b: number = data[i + 2] ?? 0
@@ -468,7 +514,16 @@ export function useImageEditor() {
       data[i + 1] = Math.max(0, Math.min(255, g))
       data[i + 2] = Math.max(0, Math.min(255, b))
     }
-    
+
+    // Apply the advanced Fabric filters in place. These are the exact same
+    // filter instances used for the preview, so export === preview. Matrix-based
+    // filters (e.g. HueRotation) need their matrix computed before applyTo2d.
+    for (const filter of advancedFilters) {
+      const maybeMatrix = filter as unknown as { calculateMatrix?: () => void }
+      if (typeof maybeMatrix.calculateMatrix === 'function') maybeMatrix.calculateMatrix()
+      filter.applyTo2d({ imageData } as Parameters<typeof filter.applyTo2d>[0])
+    }
+
     hiddenContext.value.putImageData(imageData, 0, 0)
   }
 
@@ -489,6 +544,26 @@ export function useImageEditor() {
 
   const toggleGrayscale = (enabled: boolean) => {
     currentFilters.value.grayscale = enabled
+    applyFilters()
+  }
+
+  const toggleSepia = (enabled: boolean) => {
+    currentFilters.value.sepia = enabled
+    applyFilters()
+  }
+
+  const toggleInvert = (enabled: boolean) => {
+    currentFilters.value.invert = enabled
+    applyFilters()
+  }
+
+  const setHue = (value: number) => {
+    currentFilters.value.hue = value
+    applyFilters()
+  }
+
+  const setPreset = (preset: FilterPreset) => {
+    currentFilters.value.preset = preset
     applyFilters()
   }
 
@@ -1070,6 +1145,10 @@ export function useImageEditor() {
     setContrast,
     setSaturation,
     toggleGrayscale,
+    toggleSepia,
+    toggleInvert,
+    setHue,
+    setPreset,
     applyBorder,
     removeBorder,
     enterCropMode,

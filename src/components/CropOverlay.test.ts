@@ -1,6 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CropOverlay from './CropOverlay.vue'
+
+// happy-dom may not implement pointer capture used by handlePointerDown.
+if (!(HTMLElement.prototype as any).setPointerCapture) {
+  ;(HTMLElement.prototype as any).setPointerCapture = vi.fn()
+}
+
+/** Dispatch a document-level pointermove the overlay listens for. */
+const movePointer = (clientX: number, clientY: number) => {
+  const ev = new Event('pointermove') as any
+  ev.clientX = clientX
+  ev.clientY = clientY
+  document.dispatchEvent(ev)
+}
 
 describe('CropOverlay Component', () => {
   const defaultProps = {
@@ -126,8 +139,8 @@ describe('CropOverlay Component', () => {
     expect(darkRect.exists()).toBe(true)
   })
 
-  it('should have handle size of 4x4', () => {
-    const handles = wrapper.findAll('.w-4.h-4')
+  it('should have touch-friendly handle sizes', () => {
+    const handles = wrapper.findAll('.w-6.h-6')
     expect(handles.length).toBeGreaterThan(0)
   })
 
@@ -179,7 +192,79 @@ describe('CropOverlay Component', () => {
       ...defaultProps,
       aspectRatio: null
     })
-    
+
     expect(wrapper.exists()).toBe(true)
+  })
+})
+
+describe('CropOverlay Resize Behavior', () => {
+  // imgLeft=100, imgTop=50, imgRight=700, imgBottom=550
+  // crop: left=150, top=100, right=650, bottom=500
+  const baseProps = {
+    canvasWidth: 800,
+    canvasHeight: 600,
+    imageBounds: { left: 100, top: 50, width: 600, height: 500 },
+    aspectRatio: null as number | null,
+    initialCrop: { x: 150, y: 100, width: 500, height: 400 }
+  }
+
+  const lastUpdate = (wrapper: ReturnType<typeof mount>) => {
+    const updates = wrapper.emitted('update')
+    expect(updates).toBeDefined()
+    return updates![updates!.length - 1]![0] as { x: number; y: number; width: number; height: number }
+  }
+
+  it('stops at the image edge without extending the opposite edge (free resize)', async () => {
+    const wrapper = mount(CropOverlay, { props: { ...baseProps } })
+
+    // Grab the east handle and drag it far past the right image edge.
+    await wrapper.find('.cursor-e-resize').trigger('pointerdown', { clientX: 0, clientY: 0 })
+    movePointer(5000, 0)
+
+    const crop = lastUpdate(wrapper)
+    // Right edge clamps to the image right (700); the anchored left edge is untouched.
+    expect(crop.x).toBe(150)
+    expect(crop.x + crop.width).toBeCloseTo(700, 5)
+    wrapper.unmount()
+  })
+
+  it('does not let the left edge move when dragging the right edge past the boundary', async () => {
+    const wrapper = mount(CropOverlay, { props: { ...baseProps } })
+
+    await wrapper.find('.cursor-e-resize').trigger('pointerdown', { clientX: 0, clientY: 0 })
+    movePointer(5000, 0)
+    movePointer(6000, 0) // keep pushing — left edge must remain fixed
+
+    const crop = lastUpdate(wrapper)
+    expect(crop.x).toBe(150)
+    expect(crop.x + crop.width).toBeLessThanOrEqual(700 + 0.001)
+    wrapper.unmount()
+  })
+
+  it('preserves the aspect ratio when dragging a middle edge handle', async () => {
+    const wrapper = mount(CropOverlay, { props: { ...baseProps, aspectRatio: 1 } })
+
+    // Drag the east (middle) handle — the box must stay square.
+    await wrapper.find('.cursor-e-resize').trigger('pointerdown', { clientX: 0, clientY: 0 })
+    movePointer(40, 0)
+
+    const crop = lastUpdate(wrapper)
+    expect(crop.width).toBeCloseTo(crop.height, 5)
+    wrapper.unmount()
+  })
+
+  it('keeps the aspect ratio and stays in bounds when an edge hits the image boundary', async () => {
+    const wrapper = mount(CropOverlay, { props: { ...baseProps, aspectRatio: 1 } })
+
+    await wrapper.find('.cursor-e-resize').trigger('pointerdown', { clientX: 0, clientY: 0 })
+    movePointer(5000, 0) // push way past the edge
+
+    const crop = lastUpdate(wrapper)
+    expect(crop.width).toBeCloseTo(crop.height, 5)        // ratio held
+    expect(crop.x).toBeGreaterThanOrEqual(100 - 0.001)     // within image bounds
+    expect(crop.y).toBeGreaterThanOrEqual(50 - 0.001)
+    expect(crop.x + crop.width).toBeLessThanOrEqual(700 + 0.001)
+    expect(crop.y + crop.height).toBeLessThanOrEqual(550 + 0.001)
+    wrapper.unmount()
   })
 })

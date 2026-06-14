@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useImageEditor } from '../composables/useImageEditor'
+import type { FilterPreset } from '../composables/useImageEditor'
 
 const props = defineProps<{
   editor: ReturnType<typeof useImageEditor>
@@ -10,10 +11,24 @@ const brightness = ref(0)
 const contrast = ref(0)
 const saturation = ref(0)
 const grayscale = ref(false)
+const sepia = ref(false)
+const invert = ref(false)
+const hue = ref(0)
+const preset = ref<FilterPreset>('')
+
+const presets: { value: FilterPreset; label: string }[] = [
+  { value: '', label: 'None' },
+  { value: 'vintage', label: 'Vintage' },
+  { value: 'kodachrome', label: 'Kodachrome' },
+  { value: 'technicolor', label: 'Technicolor' },
+  { value: 'polaroid', label: 'Polaroid' },
+  { value: 'brownie', label: 'Brownie' }
+]
 
 let brightnessTimeout: number | null = null
 let contrastTimeout: number | null = null
 let saturationTimeout: number | null = null
+let hueTimeout: number | null = null
 
 // Watch for changes and apply filters with debouncing
 watch(brightness, (value) => {
@@ -43,15 +58,42 @@ watch(saturation, (value) => {
   }, 300)
 })
 
+watch(hue, (value) => {
+  if (hueTimeout) {
+    clearTimeout(hueTimeout)
+  }
+  hueTimeout = window.setTimeout(() => {
+    props.editor.setHue(value)
+  }, 300)
+})
+
 watch(grayscale, (value) => {
   props.editor.toggleGrayscale(value)
 })
+
+watch(sepia, (value) => {
+  props.editor.toggleSepia(value)
+})
+
+watch(invert, (value) => {
+  props.editor.toggleInvert(value)
+})
+
+const selectPreset = (value: FilterPreset) => {
+  preset.value = value
+  props.editor.setPreset(value)
+}
 
 const resetFilters = () => {
   brightness.value = 0
   contrast.value = 0
   saturation.value = 0
   grayscale.value = false
+  sepia.value = false
+  invert.value = false
+  hue.value = 0
+  preset.value = ''
+  props.editor.setPreset('')
 }
 
 // When the editor reloads/resets the base image, mirror its cleared state in the
@@ -65,8 +107,28 @@ watch(() => props.editor.resetSignal.value, () => {
   <div class="card bg-base-100 shadow-md">
     <div class="card-body">
       <h3 class="card-title text-lg">Filters</h3>
-      
+
       <div class="space-y-4">
+        <!-- Preset Looks -->
+        <div>
+          <label class="label-text font-semibold">Presets</label>
+          <div class="grid grid-cols-3 gap-2 mt-2">
+            <button
+              v-for="p in presets"
+              :key="p.value || 'none'"
+              @click="selectPreset(p.value)"
+              :class="[
+                'btn btn-xs',
+                preset === p.value ? 'btn-primary' : 'btn-outline'
+              ]"
+            >
+              {{ p.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="divider my-2"></div>
+
         <!-- Grayscale Toggle -->
         <div class="form-control">
           <label class="label cursor-pointer justify-start gap-3">
@@ -76,6 +138,30 @@ watch(() => props.editor.resetSignal.value, () => {
               class="toggle toggle-primary"
             />
             <span class="label-text font-semibold">Black & White</span>
+          </label>
+        </div>
+
+        <!-- Sepia Toggle -->
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-3">
+            <input
+              v-model="sepia"
+              type="checkbox"
+              class="toggle toggle-primary"
+            />
+            <span class="label-text font-semibold">Sepia</span>
+          </label>
+        </div>
+
+        <!-- Invert Toggle -->
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-3">
+            <input
+              v-model="invert"
+              type="checkbox"
+              class="toggle toggle-primary"
+            />
+            <span class="label-text font-semibold">Invert Colors</span>
           </label>
         </div>
 
@@ -141,6 +227,27 @@ watch(() => props.editor.resetSignal.value, () => {
             <span>Desaturated</span>
             <span>Normal</span>
             <span>Vibrant</span>
+          </div>
+        </div>
+
+        <!-- Hue -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="label-text font-semibold">Hue</label>
+            <span class="badge badge-sm">{{ hue > 0 ? '+' : '' }}{{ hue }}°</span>
+          </div>
+          <input
+            v-model.number="hue"
+            type="range"
+            min="-180"
+            max="180"
+            step="1"
+            class="range range-primary range-sm"
+          />
+          <div class="flex justify-between text-xs text-base-content/60 mt-1">
+            <span>-180°</span>
+            <span>0°</span>
+            <span>+180°</span>
           </div>
         </div>
 

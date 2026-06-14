@@ -21,6 +21,8 @@ const dragStart = ref({ x: 0, y: 0 })
 
 const cropRect = ref<CropArea>({ ...props.initialCrop })
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max))
+
 // Watch for aspect ratio changes and adjust crop box
 watch(() => props.aspectRatio, (newRatio) => {
   if (newRatio) {
@@ -117,50 +119,92 @@ const handlePointerMove = (e: PointerEvent) => {
       y: newY
     }
   } else if (isResizing.value) {
-    // Resize the crop area
-    let newX = cropRect.value.x
-    let newY = cropRect.value.y
-    let newWidth = cropRect.value.width
-    let newHeight = cropRect.value.height
-    
     const handle = resizeHandle.value
-    
-    if (handle.includes('n')) {
-      newY += deltaY
-      newHeight -= deltaY
-    }
-    if (handle.includes('s')) {
-      newHeight += deltaY
-    }
-    if (handle.includes('w')) {
-      newX += deltaX
-      newWidth -= deltaX
-    }
-    if (handle.includes('e')) {
-      newWidth += deltaX
-    }
-    
-    // Apply aspect ratio constraint
-    if (props.aspectRatio) {
-      if (handle.includes('e') || handle.includes('w')) {
-        newHeight = newWidth / props.aspectRatio
-      } else {
-        newWidth = newHeight * props.aspectRatio
-      }
-    }
-    
-    // Constrain to image bounds and minimum size
     const minSize = 50
-    newWidth = Math.max(minSize, Math.min(newWidth, props.imageBounds.width))
-    newHeight = Math.max(minSize, Math.min(newHeight, props.imageBounds.height))
-    newX = Math.max(props.imageBounds.left, Math.min(newX, props.imageBounds.left + props.imageBounds.width - newWidth))
-    newY = Math.max(props.imageBounds.top, Math.min(newY, props.imageBounds.top + props.imageBounds.height - newHeight))
-    
-    cropRect.value = {
-      x: newX,
-      y: newY,
-      width: newWidth,
-      height: newHeight
+
+    // Image edges in overlay/canvas coordinate space.
+    const imgLeft = props.imageBounds.left
+    const imgTop = props.imageBounds.top
+    const imgRight = imgLeft + props.imageBounds.width
+    const imgBottom = imgTop + props.imageBounds.height
+
+    // Current crop edges.
+    let left = cropRect.value.x
+    let top = cropRect.value.y
+    let right = left + cropRect.value.width
+    let bottom = top + cropRect.value.height
+
+    const ratio = props.aspectRatio
+
+    if (!ratio) {
+      // Free resize: move only the dragged edges. Each moving edge is clamped to
+      // the image boundary and may not cross the opposite (anchored) edge — so
+      // once an edge hits the image edge it simply stops, and the opposite edge
+      // never moves.
+      if (handle.includes('w')) left = clamp(left + deltaX, imgLeft, right - minSize)
+      if (handle.includes('e')) right = clamp(right + deltaX, left + minSize, imgRight)
+      if (handle.includes('n')) top = clamp(top + deltaY, imgTop, bottom - minSize)
+      if (handle.includes('s')) bottom = clamp(bottom + deltaY, top + minSize, imgBottom)
+
+      cropRect.value = { x: left, y: top, width: right - left, height: bottom - top }
+    } else {
+      // Aspect-locked resize. One axis is the "driver" (the one the dragged
+      // handle moves along); the perpendicular dimension is always derived from
+      // the ratio, so the ratio can never drift.
+      const horizontal = handle.includes('e') || handle.includes('w')
+
+      // The edge opposite the dragged one is the anchor and stays fixed. A pure
+      // edge handle (no opposite component on the perpendicular axis) grows
+      // symmetrically about that axis's center.
+      const anchorLeft = handle.includes('e')   // dragging east → left edge fixed
+      const anchorRight = handle.includes('w')  // dragging west → right edge fixed
+      const anchorTop = handle.includes('s')    // dragging south → top edge fixed
+      const anchorBottom = handle.includes('n') // dragging north → bottom edge fixed
+
+      const centerX = (left + right) / 2
+      const centerY = (top + bottom) / 2
+
+      // Drive the size off the dragged axis, derive the other from the ratio.
+      let width = right - left
+      let height = bottom - top
+      if (horizontal) {
+        if (handle.includes('w')) width -= deltaX
+        if (handle.includes('e')) width += deltaX
+        height = width / ratio
+      } else {
+        if (handle.includes('n')) height -= deltaY
+        if (handle.includes('s')) height += deltaY
+        width = height * ratio
+      }
+
+      // Minimum size, preserving the ratio.
+      if (width < minSize) { width = minSize; height = width / ratio }
+      if (height < minSize) { height = minSize; width = height * ratio }
+
+      // Space available given each axis's anchor. For a symmetric (centered)
+      // axis the limit is twice the distance to the nearest image edge.
+      const maxWidth = anchorLeft ? imgRight - left
+        : anchorRight ? right - imgLeft
+        : Math.min(centerX - imgLeft, imgRight - centerX) * 2
+      const maxHeight = anchorTop ? imgBottom - top
+        : anchorBottom ? bottom - imgTop
+        : Math.min(centerY - imgTop, imgBottom - centerY) * 2
+
+      // Clamp to whichever axis runs out of room first, keeping the ratio. When
+      // the box hits an image edge it stops growing on BOTH axes.
+      if (width > maxWidth) { width = maxWidth; height = width / ratio }
+      if (height > maxHeight) { height = maxHeight; width = height * ratio }
+
+      // Reposition from the anchors.
+      if (anchorLeft) right = left + width
+      else if (anchorRight) left = right - width
+      else { left = centerX - width / 2 }
+
+      if (anchorTop) bottom = top + height
+      else if (anchorBottom) top = bottom - height
+      else { top = centerY - height / 2 }
+
+      cropRect.value = { x: left, y: top, width, height }
     }
   }
   

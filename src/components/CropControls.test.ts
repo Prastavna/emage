@@ -98,6 +98,42 @@ describe('CropControls Component', () => {
     expect(text).toContain('16:9')
   })
 
+  it('should include passport / ID photo sizes', () => {
+    const mockEditorInCropMode = {
+      ...mockEditor,
+      cropMode: { value: true }
+    }
+
+    const wrapper = mount(CropControls, {
+      props: { editor: mockEditorInCropMode as any }
+    })
+
+    const groupLabels = wrapper.findAll('optgroup').map(g => g.attributes('label'))
+    expect(groupLabels).toContain('Passport / ID Photo')
+
+    const text = wrapper.text()
+    expect(text).toContain('35×45 mm (EU/UK/India/Aus)')
+    expect(text).toContain('2×2 in / 51×51 mm (US/India)')
+  })
+
+  it('should emit the passport aspect ratio when selected', async () => {
+    const mockEditorInCropMode = {
+      ...mockEditor,
+      cropMode: { value: true }
+    }
+
+    const wrapper = mount(CropControls, {
+      props: { editor: mockEditorInCropMode as any }
+    })
+
+    const select = wrapper.find('select')
+    await select.setValue('passport-35x45')
+
+    const events = wrapper.emitted('aspectRatioChange')
+    expect(events).toBeDefined()
+    expect(events![events!.length - 1]).toEqual([35 / 45])
+  })
+
   it('should show Apply and Cancel buttons in crop mode', () => {
     const mockEditorInCropMode = {
       ...mockEditor,

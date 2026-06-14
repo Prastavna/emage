@@ -41,7 +41,15 @@ vi.mock('fabric', () => {
       Brightness: vi.fn().mockImplementation((opts: any) => ({ brightness: opts.brightness })),
       Contrast: vi.fn().mockImplementation((opts: any) => ({ contrast: opts.contrast })),
       Saturation: vi.fn().mockImplementation((opts: any) => ({ saturation: opts.saturation })),
-      Grayscale: vi.fn().mockImplementation(() => ({ grayscale: true }))
+      Grayscale: vi.fn().mockImplementation(() => ({ grayscale: true })),
+      Sepia: vi.fn().mockImplementation(() => ({ sepia: true })),
+      Invert: vi.fn().mockImplementation(() => ({ invert: true })),
+      HueRotation: vi.fn().mockImplementation((opts: any) => ({ rotation: opts.rotation })),
+      Vintage: vi.fn().mockImplementation(() => ({ preset: 'vintage' })),
+      Kodachrome: vi.fn().mockImplementation(() => ({ preset: 'kodachrome' })),
+      Technicolor: vi.fn().mockImplementation(() => ({ preset: 'technicolor' })),
+      Polaroid: vi.fn().mockImplementation(() => ({ preset: 'polaroid' })),
+      Brownie: vi.fn().mockImplementation(() => ({ preset: 'brownie' }))
     }
   }
 })
@@ -66,7 +74,11 @@ describe('useImageEditor Composable', () => {
         brightness: 0,
         contrast: 0,
         saturation: 0,
-        grayscale: false
+        grayscale: false,
+        sepia: false,
+        invert: false,
+        hue: 0,
+        preset: ''
       })
     })
 
@@ -97,9 +109,38 @@ describe('useImageEditor Composable', () => {
     it('should toggle grayscale', () => {
       editor.toggleGrayscale(true)
       expect(editor.currentFilters.value.grayscale).toBe(true)
-      
+
       editor.toggleGrayscale(false)
       expect(editor.currentFilters.value.grayscale).toBe(false)
+    })
+
+    it('should toggle sepia', () => {
+      editor.toggleSepia(true)
+      expect(editor.currentFilters.value.sepia).toBe(true)
+
+      editor.toggleSepia(false)
+      expect(editor.currentFilters.value.sepia).toBe(false)
+    })
+
+    it('should toggle invert', () => {
+      editor.toggleInvert(true)
+      expect(editor.currentFilters.value.invert).toBe(true)
+
+      editor.toggleInvert(false)
+      expect(editor.currentFilters.value.invert).toBe(false)
+    })
+
+    it('should update hue value', () => {
+      editor.setHue(90)
+      expect(editor.currentFilters.value.hue).toBe(90)
+    })
+
+    it('should set an artistic preset', () => {
+      editor.setPreset('vintage')
+      expect(editor.currentFilters.value.preset).toBe('vintage')
+
+      editor.setPreset('')
+      expect(editor.currentFilters.value.preset).toBe('')
     })
 
     it('should apply multiple filters', () => {
@@ -108,7 +149,7 @@ describe('useImageEditor Composable', () => {
       editor.setSaturation(0.3)
       editor.toggleGrayscale(true)
       
-      expect(editor.currentFilters.value).toEqual({
+      expect(editor.currentFilters.value).toMatchObject({
         brightness: 0.2,
         contrast: 0.1,
         saturation: 0.3,
@@ -161,6 +202,10 @@ describe('useImageEditor Composable', () => {
       expect(typeof editor.setContrast).toBe('function')
       expect(typeof editor.setSaturation).toBe('function')
       expect(typeof editor.toggleGrayscale).toBe('function')
+      expect(typeof editor.toggleSepia).toBe('function')
+      expect(typeof editor.toggleInvert).toBe('function')
+      expect(typeof editor.setHue).toBe('function')
+      expect(typeof editor.setPreset).toBe('function')
       expect(typeof editor.enterCropMode).toBe('function')
       expect(typeof editor.exitCropMode).toBe('function')
       expect(typeof editor.setCropArea).toBe('function')
@@ -183,13 +228,21 @@ describe('useImageEditor Composable', () => {
         brightness: 0.5,
         contrast: 0.3,
         saturation: -0.2,
-        grayscale: true
+        grayscale: true,
+        sepia: false,
+        invert: false,
+        hue: 0,
+        preset: ''
       }
-      
+
       expect(filters).toHaveProperty('brightness')
       expect(filters).toHaveProperty('contrast')
       expect(filters).toHaveProperty('saturation')
       expect(filters).toHaveProperty('grayscale')
+      expect(filters).toHaveProperty('sepia')
+      expect(filters).toHaveProperty('invert')
+      expect(filters).toHaveProperty('hue')
+      expect(filters).toHaveProperty('preset')
     })
 
     it('should match ImageDimensions interface', () => {

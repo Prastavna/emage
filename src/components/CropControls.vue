@@ -23,9 +23,19 @@ const aspectRatios = [
   { label: '2:3', value: '2:3', ratio: 2/3 }
 ]
 
+// Standard passport / ID photo sizes. Cropping only fixes the aspect ratio
+// (shape), not the print resolution — these match the official width:height of
+// each document's photo so the crop is print-ready at any DPI.
+const passportRatios = [
+  { label: '35×45 mm (EU/UK/India/Aus)', value: 'passport-35x45', ratio: 35/45 },
+  { label: '2×2 in / 51×51 mm (US/India)', value: 'passport-2x2', ratio: 1 },
+  { label: '50×70 mm (Canada)', value: 'passport-50x70', ratio: 50/70 },
+  { label: '33×48 mm (China visa)', value: 'passport-33x48', ratio: 33/48 }
+]
+
 const currentRatio = computed(() => {
-  const selected = aspectRatios.find(r => r.value === selectedRatio.value)
-  return selected?.ratio || null
+  const selected = [...aspectRatios, ...passportRatios].find(r => r.value === selectedRatio.value)
+  return selected?.ratio ?? null
 })
 
 const handleRatioChange = () => {
@@ -73,13 +83,24 @@ const applyCrop = async () => {
             @change="handleRatioChange"
             class="select select-bordered select-sm w-full"
           >
-            <option 
-              v-for="ratio in aspectRatios" 
-              :key="ratio.value" 
-              :value="ratio.value"
-            >
-              {{ ratio.label }}
-            </option>
+            <optgroup label="Standard">
+              <option
+                v-for="ratio in aspectRatios"
+                :key="ratio.value"
+                :value="ratio.value"
+              >
+                {{ ratio.label }}
+              </option>
+            </optgroup>
+            <optgroup label="Passport / ID Photo">
+              <option
+                v-for="ratio in passportRatios"
+                :key="ratio.value"
+                :value="ratio.value"
+              >
+                {{ ratio.label }}
+              </option>
+            </optgroup>
           </select>
         </label>
 
