@@ -242,5 +242,14 @@ describe('useImageEditor Composable', () => {
       const dims = await editor.estimateDimensionsForFileSize(100, 'image/jpeg')
       expect(dims).toBeNull()
     })
+
+    it('should return false from resizeToFileSize when no image loaded', async () => {
+      const result = await editor.resizeToFileSize(100, 'image/jpeg')
+      expect(result).toBe(false)
+    })
+
+    it('should not throw from resize when no image loaded', async () => {
+      await expect(editor.resize(100, 100, true)).resolves.toBeUndefined()
+    })
   })
 })

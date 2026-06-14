@@ -24,6 +24,7 @@ const isResizing = ref(false)
 const originalAspectRatio = ref(1)
 const estimatedFileSize = ref<number | null>(null)
 const estimatedDimensions = ref<{ width: number; height: number } | null>(null)
+const achievedFileSize = ref<number | null>(null)
 const isEstimating = ref(false)
 
 let resizeTimeout: number | null = null
@@ -94,20 +95,26 @@ const handleHeightChange = () => {
 
 const handleFileSizeChange = () => {
   if (fileSizeTimeout) clearTimeout(fileSizeTimeout)
-  fileSizeTimeout = window.setTimeout(async () => {
-    if (targetFileSize.value > 0 && !isResizing.value) {
-      isResizing.value = true
-      await props.editor.resizeToFileSize(targetFileSize.value)
-      // Update estimated dimensions from the result
-      const dims = props.editor.getCurrentDimensions()
-      if (dims) {
-        estimatedDimensions.value = { width: dims.width, height: dims.height }
-        width.value = dims.width
-        height.value = dims.height
-      }
-      isResizing.value = false
+  fileSizeTimeout = window.setTimeout(() => { runFileSizeResize() }, 600)
+}
+
+// Runs the target-size search in the CURRENT export format, so the cached blob
+// the editor keeps matches the format the download will request — that match is
+// what makes the downloaded file land at the requested size.
+const runFileSizeResize = async () => {
+  if (targetFileSize.value > 0 && !isResizing.value) {
+    isResizing.value = true
+    await props.editor.resizeToFileSize(targetFileSize.value, exportFormat.value)
+    // Reflect the achieved result back to the user.
+    const dims = props.editor.getCurrentDimensions()
+    if (dims) {
+      estimatedDimensions.value = { width: dims.width, height: dims.height }
+      width.value = dims.width
+      height.value = dims.height
     }
-  }, 600)
+    achievedFileSize.value = await props.editor.getCurrentFileSize(exportFormat.value)
+    isResizing.value = false
+  }
 }
 
 const updateEstimatedFileSize = async () => {
@@ -125,8 +132,36 @@ const resetToOriginal = async () => {
   updateFromCurrent()
   estimatedFileSize.value = null
   estimatedDimensions.value = null
+  achievedFileSize.value = null
   isResizing.value = false
 }
+
+// Dragging the quality slider is a manual override: drop any cached target-size
+// bytes so the export reflects the slider value.
+const handleQualityChange = () => {
+  props.editor.invalidateExportBlob?.()
+  achievedFileSize.value = null
+}
+
+// Changing format mid-flow keeps the target-size guarantee intact: re-run the
+// search in the new format (which re-caches), or just drop the stale cache when
+// in dimensions mode.
+watch(exportFormat, () => {
+  if (!props.editor.imageLoaded.value) return
+  if (resizeMode.value === 'filesize') {
+    runFileSizeResize()
+  } else {
+    props.editor.invalidateExportBlob?.()
+  }
+})
+
+// Leaving target-size mode stops serving the cached exact bytes.
+watch(resizeMode, (mode) => {
+  if (mode === 'dimensions') {
+    props.editor.invalidateExportBlob?.()
+    achievedFileSize.value = null
+  }
+})
 
 const updateFromCurrent = () => {
   const dims = props.editor.getCurrentDimensions()
@@ -193,8 +228,8 @@ onMounted(() => {
           </select>
         </label>
 
-        <!-- Quality -->
-        <div v-if="exportFormat !== 'image/png'">
+        <!-- Quality (hidden in target-size mode, where the search picks quality) -->
+        <div v-if="exportFormat !== 'image/png' && resizeMode !== 'filesize'">
           <div class="flex justify-between items-center mb-2">
             <label class="label-text text-xs font-semibold">Quality</label>
             <span class="badge badge-sm">{{ Math.round(exportQuality * 100) }}%</span>
@@ -206,6 +241,7 @@ onMounted(() => {
             max="1"
             step="0.05"
             class="range range-primary range-sm"
+            @input="handleQualityChange"
           />
           <div class="flex justify-between text-xs text-base-content/60 mt-1">
             <span>Lower</span>
@@ -333,6 +369,11 @@ onMounted(() => {
           <!-- Estimated dimensions -->
           <p v-if="estimatedDimensions && !isResizing" class="text-xs text-base-content/60">
             Estimated dimensions: {{ estimatedDimensions.width }} x {{ estimatedDimensions.height }}px
+          </p>
+
+          <!-- Actual achieved file size (what the download will be) -->
+          <p v-if="achievedFileSize !== null && !isResizing" class="text-xs text-success">
+            Actual size: ~{{ achievedFileSize.toFixed(1) }} KB
           </p>
 
           <p v-if="isResizing" class="text-xs text-base-content/50 text-center">Resizing...</p>

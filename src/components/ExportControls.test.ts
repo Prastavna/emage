@@ -496,4 +496,85 @@ describe('ExportControls - Filename with Timestamp', () => {
 
     vi.useRealTimers()
   })
+
+  describe('Target-size / export format consistency (exact-size fix)', () => {
+    it('runs the target-size search in the CURRENT export format', async () => {
+      vi.useFakeTimers()
+      const editor = createMockEditor({ originalFileFormat: { value: 'image/webp' } })
+      const wrapper = mount(ExportControls, { props: { editor: editor as any } })
+      await wrapper.vm.$nextTick()
+
+      // Switch to the "Target Size" tab.
+      const tabs = wrapper.findAll('[role="tab"]')
+      await tabs[1]!.trigger('click')
+
+      const input = wrapper.find('input[type="number"]')
+      await input.setValue('90')
+      await input.trigger('input')
+
+      await vi.advanceTimersByTimeAsync(700)
+
+      // The fix: format is threaded through so the cached blob matches the
+      // download format. Previously this was hardcoded to image/jpeg.
+      expect(editor.resizeToFileSize).toHaveBeenCalledWith(90, 'image/webp')
+      vi.useRealTimers()
+    })
+
+    it('surfaces the achieved size so it matches the download', async () => {
+      vi.useFakeTimers()
+      const editor = createMockEditor({ getCurrentFileSize: vi.fn().mockResolvedValue(88.4) })
+      const wrapper = mount(ExportControls, { props: { editor: editor as any } })
+      await wrapper.vm.$nextTick()
+
+      const tabs = wrapper.findAll('[role="tab"]')
+      await tabs[1]!.trigger('click')
+      const input = wrapper.find('input[type="number"]')
+      await input.setValue('90')
+      await input.trigger('input')
+      await vi.advanceTimersByTimeAsync(700)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('Actual size: ~88.4 KB')
+      vi.useRealTimers()
+    })
+
+    it('invalidates the cached export blob when leaving target-size mode', async () => {
+      const invalidateExportBlob = vi.fn()
+      const editor = createMockEditor({ invalidateExportBlob })
+      const wrapper = mount(ExportControls, { props: { editor: editor as any } })
+
+      const tabs = wrapper.findAll('[role="tab"]')
+      await tabs[1]!.trigger('click') // into target-size
+      invalidateExportBlob.mockClear()
+      await tabs[0]!.trigger('click') // back to dimensions
+
+      expect(invalidateExportBlob).toHaveBeenCalled()
+    })
+
+    it('invalidates the cached blob when the quality slider is dragged', async () => {
+      const invalidateExportBlob = vi.fn()
+      // jpeg so the quality slider is rendered (dimensions mode, non-png).
+      const editor = createMockEditor({ invalidateExportBlob })
+      const wrapper = mount(ExportControls, { props: { editor: editor as any } })
+      await wrapper.vm.$nextTick()
+
+      const range = wrapper.find('input[type="range"]')
+      expect(range.exists()).toBe(true)
+      await range.trigger('input')
+
+      expect(invalidateExportBlob).toHaveBeenCalled()
+    })
+
+    it('hides the quality slider in target-size mode', async () => {
+      const wrapper = mount(ExportControls, { props: { editor: createMockEditor() as any } })
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('input[type="range"]').exists()).toBe(true)
+
+      const tabs = wrapper.findAll('[role="tab"]')
+      await tabs[1]!.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('input[type="range"]').exists()).toBe(false)
+    })
+  })
 })

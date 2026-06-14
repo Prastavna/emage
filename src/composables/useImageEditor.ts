@@ -1,5 +1,35 @@
 import { ref, shallowRef } from 'vue'
 import { Canvas, FabricImage, filters } from 'fabric'
+import {
+  computeResizeDimensions,
+  clampToPositiveInt,
+  findLargestParamUnderTarget
+} from '../lib/resizeMath'
+import { resizeCanvas, encodeCanvas, type EncodeFormat } from '../lib/imageEncoder'
+
+/** Coerce an arbitrary mime string to a supported encode format (PNG default). */
+function toEncodeFormat(format?: string): EncodeFormat {
+  if (format === 'image/jpeg' || format === 'image/jpg') return 'image/jpeg'
+  if (format === 'image/webp') return 'image/webp'
+  return 'image/png'
+}
+
+/** Decode a Blob into a fully-loaded HTMLImageElement. */
+function htmlImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
+    const image = new Image()
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = (err) => {
+      URL.revokeObjectURL(url)
+      reject(err)
+    }
+    image.src = url
+  })
+}
 
 export interface ImageFilters {
   brightness: number
@@ -58,6 +88,17 @@ export function useImageEditor() {
   const originalFileFormat = ref<string>('image/jpeg')
   const originalFileName = ref<string>('edited-image')
 
+  // Exact bytes produced by the last target-file-size operation. When present
+  // and the requested export format matches, download/size queries serve these
+  // bytes verbatim instead of re-encoding (which would change the size and
+  // break "resize to 90 KB → download is 90 KB"). Any pixel mutation clears it.
+  const exportBlob = shallowRef<Blob | null>(null)
+  const exportBlobFormat = ref<EncodeFormat | null>(null)
+  const invalidateExportBlob = () => {
+    exportBlob.value = null
+    exportBlobFormat.value = null
+  }
+
   const initCanvas = (canvasElement: HTMLCanvasElement, width: number = 800, height: number = 600) => {
     canvas.value = new Canvas(canvasElement, {
       backgroundColor: '#f0f0f0',
@@ -68,6 +109,7 @@ export function useImageEditor() {
   }
 
   const loadImage = async (file: File): Promise<void> => {
+    invalidateExportBlob()
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       
@@ -183,6 +225,7 @@ export function useImageEditor() {
   }
 
   const rotate = (angle: number) => {
+    invalidateExportBlob()
     if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
       const currentAngle = fabricImage.value.angle || 0
       const newAngle = currentAngle + angle
@@ -197,6 +240,7 @@ export function useImageEditor() {
   }
 
   const setRotation = (angle: number) => {
+    invalidateExportBlob()
     if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
       // Update preview canvas
       fabricImage.value.rotate(angle)
@@ -256,6 +300,7 @@ export function useImageEditor() {
   }
 
   const flipHorizontal = () => {
+    invalidateExportBlob()
     if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
       // Update preview
       fabricImage.value.set('flipX', !fabricImage.value.flipX)
@@ -279,6 +324,7 @@ export function useImageEditor() {
   }
 
   const flipVertical = () => {
+    invalidateExportBlob()
     if (fabricImage.value && hiddenCanvas.value && hiddenContext.value) {
       // Update preview
       fabricImage.value.set('flipY', !fabricImage.value.flipY)
@@ -302,6 +348,7 @@ export function useImageEditor() {
   }
 
   const applyFilters = () => {
+    invalidateExportBlob()
     if (!fabricImage.value || !hiddenCanvas.value || !hiddenContext.value) return
 
     const filterArray: InstanceType<typeof filters.BaseFilter>[] = []
@@ -421,6 +468,7 @@ export function useImageEditor() {
   }
 
   const applyBorder = (width: number, color: string, radius: number = 0, borderType: string = 'solid') => {
+    invalidateExportBlob()
     if (!hiddenCanvas.value || !hiddenContext.value || !originalImage.value) return
 
     // First, reconstruct the hidden canvas to remove any existing border
@@ -554,6 +602,7 @@ export function useImageEditor() {
   }
 
   const removeBorder = () => {
+    invalidateExportBlob()
     currentBorder.value = null
     // Reconstruct from original to remove border
     reconstructHiddenCanvas()
@@ -688,194 +737,184 @@ export function useImageEditor() {
     }
   }
 
-  const resize = async (width: number, height: number, maintainAspect: boolean = true) => {
-    if (!hiddenCanvas.value || !hiddenContext.value) return
-
-    let newWidth = width
-    let newHeight = height
-
-    if (maintainAspect && hiddenCanvas.value) {
-      const aspectRatio = hiddenCanvas.value.width / hiddenCanvas.value.height
-      if (width && !height) {
-        newHeight = width / aspectRatio
-      } else if (height && !width) {
-        newWidth = height * aspectRatio
-      } else if (width && height) {
-        const targetAspect = width / height
-        if (aspectRatio > targetAspect) {
-          newHeight = width / aspectRatio
-        } else {
-          newWidth = height * aspectRatio
-        }
-      }
-    }
-
-    const finalWidth = Math.round(newWidth)
-    const finalHeight = Math.round(newHeight)
-
-    // Create a temporary canvas for resizing the hidden canvas
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = finalWidth
-    tempCanvas.height = finalHeight
-    const ctx = tempCanvas.getContext('2d')
-
+  /**
+   * Fast, low-quality scaled copy of a source canvas using the native 2D
+   * context. Used only for cheap size *estimates* — the committed resize uses
+   * pica's Lanczos path via `resizeCanvas`.
+   */
+  const drawScaledCanvas = (source: HTMLCanvasElement, width: number, height: number): HTMLCanvasElement => {
+    const c = document.createElement('canvas')
+    c.width = width
+    c.height = height
+    const ctx = c.getContext('2d')
     if (ctx) {
-      // Draw the hidden canvas (which has original quality) at the new size
-      ctx.drawImage(
-        hiddenCanvas.value,
-        0,
-        0,
-        finalWidth,
-        finalHeight
-      )
-
-      // Update hidden canvas directly with the resized content
-      hiddenCanvas.value.width = finalWidth
-      hiddenCanvas.value.height = finalHeight
-      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
-      
-      if (hiddenContext.value) {
-        hiddenContext.value.drawImage(tempCanvas, 0, 0)
-      }
-      
-      // Update the original image reference to the resized version
-      // so that reconstructHiddenCanvas works correctly from now on
-      const dataUrl = tempCanvas.toDataURL('image/png')
-      const img = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
-        const image = new Image()
-        image.onload = () => resolveImg(image)
-        image.onerror = rejectImg
-        image.src = dataUrl
-      })
-      originalImage.value = img
-      
-      // Reset rotation angle since the resize bakes in any prior rotation
-      currentRotationAngle.value = 0
-      
-      // Update reactive dimension tracking
-      hiddenCanvasWidth.value = finalWidth
-      hiddenCanvasHeight.value = finalHeight
-
-      // Update preview canvas from hidden canvas
-      await updatePreviewFromHiddenCanvas()
+      ctx.imageSmoothingEnabled = true
+      ;(ctx as any).imageSmoothingQuality = 'high'
+      ctx.drawImage(source, 0, 0, width, height)
     }
+    return c
   }
 
+  /** Adopt a freshly-rendered canvas as the new base image (hidden canvas + original ref). */
+  const adoptCanvasAsBase = async (rendered: HTMLCanvasElement) => {
+    if (!hiddenCanvas.value) {
+      hiddenCanvas.value = document.createElement('canvas')
+    }
+    hiddenCanvas.value.width = rendered.width
+    hiddenCanvas.value.height = rendered.height
+    hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+    hiddenContext.value?.drawImage(rendered, 0, 0)
+
+    // Keep originalImage in sync so rotation/filter reconstruction works from
+    // the resized base instead of the stale full-resolution image.
+    const dataUrl = rendered.toDataURL('image/png')
+    originalImage.value = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
+      const image = new Image()
+      image.onload = () => resolveImg(image)
+      image.onerror = rejectImg
+      image.src = dataUrl
+    })
+
+    // Resizing bakes in any prior rotation.
+    currentRotationAngle.value = 0
+    hiddenCanvasWidth.value = rendered.width
+    hiddenCanvasHeight.value = rendered.height
+  }
+
+  const resize = async (width: number, height: number, maintainAspect: boolean = true) => {
+    if (!hiddenCanvas.value || !hiddenContext.value) return
+    invalidateExportBlob()
+
+    const { width: finalWidth, height: finalHeight } = computeResizeDimensions({
+      srcWidth: hiddenCanvas.value.width,
+      srcHeight: hiddenCanvas.value.height,
+      targetWidth: width,
+      targetHeight: height,
+      maintainAspect
+    })
+
+    // High-quality Lanczos resample (pica), with a native-draw fallback baked
+    // into resizeCanvas itself.
+    const resized = await resizeCanvas(hiddenCanvas.value, finalWidth, finalHeight)
+
+    await adoptCanvasAsBase(resized)
+    await updatePreviewFromHiddenCanvas()
+  }
+
+  /**
+   * Compress/resize the working image so its encoded size lands at or under
+   * `targetKB`.
+   *
+   * Strategy (size is monotonic in both quality and scale, so each phase is a
+   * binary search rather than the old fixed-step guessing loop):
+   *   1. Lossy formats: search ENCODER QUALITY at full resolution first —
+   *      cheaper and preserves dimensions.
+   *   2. If even the lowest quality overshoots (or PNG, where quality is
+   *      irrelevant), search SCALE to shrink dimensions.
+   * The chosen result is decoded back into the base image so the preview and
+   * subsequent export reflect exactly what was produced.
+   */
   const resizeToFileSize = async (targetKB: number, format: string = 'image/jpeg'): Promise<boolean> => {
     if (!hiddenCanvas.value || !hiddenContext.value) return false
 
-    let quality = 0.92
-    let scaleFactor = 1.0
-    let blob: Blob | null = null
-    let currentDims = getCurrentDimensions()
-    
-    if (!currentDims) return false
-    
-    // Try compression first, then dimension reduction if needed
-    for (let attempt = 0; attempt < 15; attempt++) {
-      // Create a temp canvas at current scale
-      const tempCanvas = document.createElement('canvas')
-      const targetWidth = Math.round(currentDims.width * scaleFactor)
-      const targetHeight = Math.round(currentDims.height * scaleFactor)
-      
-      tempCanvas.width = targetWidth
-      tempCanvas.height = targetHeight
-      const ctx = tempCanvas.getContext('2d')
-      
-      if (!ctx) return false
-      
-      // Draw scaled image from hidden canvas
-      ctx.drawImage(
-        hiddenCanvas.value,
-        0,
-        0,
-        targetWidth,
-        targetHeight
-      )
-      
-      blob = await new Promise<Blob | null>(resolve => {
-        tempCanvas.toBlob(resolve, format, quality)
+    const dims = getCurrentDimensions()
+    if (!dims) return false
+
+    const fmt = toEncodeFormat(format)
+    const isLossy = fmt !== 'image/png'
+    const base = hiddenCanvas.value
+
+    // Render the base at a given scale (1.0 = the base itself, no resampling).
+    const renderScaled = async (scale: number): Promise<HTMLCanvasElement> => {
+      if (scale >= 0.999) return base
+      const w = clampToPositiveInt(dims.width * scale)
+      const h = clampToPositiveInt(dims.height * scale)
+      return resizeCanvas(base, w, h)
+    }
+
+    const sizeKBOf = async (canvas: HTMLCanvasElement, quality: number): Promise<number> => {
+      const blob = await encodeCanvas(canvas, fmt, quality)
+      return blob ? blob.size / 1024 : Infinity
+    }
+
+    let finalScale = 1
+    let finalQuality = isLossy ? 0.92 : 1
+
+    if (isLossy) {
+      // Phase 1 — quality search at full resolution.
+      const qRes = await findLargestParamUnderTarget({
+        measure: (q) => sizeKBOf(base, q),
+        targetKB,
+        min: 0.1,
+        max: 0.95
       })
-      
-      if (!blob) return false
-      
-      const sizeKB = blob.size / 1024
-      
-      // Within 5% tolerance is acceptable
-      if (Math.abs(sizeKB - targetKB) < targetKB * 0.05 || sizeKB <= targetKB) {
-        break
-      }
-      
-      if (sizeKB > targetKB) {
-        // Try reducing quality first
-        if (quality > 0.3) {
-          quality *= 0.85
-        } else {
-          // If quality is already low, reduce dimensions
-          scaleFactor *= 0.92
-          quality = 0.85 // Reset quality when changing dimensions
-        }
+
+      if (qRes.withinTarget) {
+        finalQuality = qRes.param
       } else {
-        // Size is too small, increase quality or scale
-        if (scaleFactor < 1.0 && quality > 0.8) {
-          scaleFactor = Math.min(1.0, scaleFactor * 1.05)
-        } else {
-          quality = Math.min(0.95, quality * 1.05)
-        }
+        // Phase 2 — even the lowest quality is too large; shrink dimensions
+        // while holding a reasonable quality.
+        finalQuality = 0.82
+        const sRes = await findLargestParamUnderTarget({
+          measure: async (s) => sizeKBOf(await renderScaled(s), finalQuality),
+          targetKB,
+          min: 0.05,
+          max: 1
+        })
+        finalScale = sRes.param
       }
-    }
-    
-    // Update both canvases with the compressed/resized image
-    if (blob) {
-      const dataUrl = URL.createObjectURL(blob)
-      const img = await new Promise<HTMLImageElement>((resolveImg, rejectImg) => {
-        const image = new Image()
-        image.onload = () => resolveImg(image)
-        image.onerror = rejectImg
-        image.src = dataUrl
+    } else {
+      // PNG: only dimensions move the needle.
+      const sRes = await findLargestParamUnderTarget({
+        measure: async (s) => sizeKBOf(await renderScaled(s), 1),
+        targetKB,
+        min: 0.05,
+        max: 1
       })
-      
-      // Update hidden canvas with the resized content
-      if (!hiddenCanvas.value) {
-        hiddenCanvas.value = document.createElement('canvas')
-      }
-      hiddenCanvas.value.width = img.width
-      hiddenCanvas.value.height = img.height
-      hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
-      
-      if (hiddenContext.value) {
-        hiddenContext.value.drawImage(img, 0, 0)
-      }
-      
-      // Update original image reference to the resized version
-      originalImage.value = img
-      currentRotationAngle.value = 0
-      
-      // Update reactive dimension tracking
-      hiddenCanvasWidth.value = img.width
-      hiddenCanvasHeight.value = img.height
-      
-      URL.revokeObjectURL(dataUrl)
-      
-      // Update preview
-      await updatePreviewFromHiddenCanvas()
-      return true
+      finalScale = sRes.param
     }
-    
-    return false
+
+    // Produce the committed result and bake it into the base image.
+    const finalCanvas = await renderScaled(finalScale)
+    const finalBlob = await encodeCanvas(finalCanvas, fmt, finalQuality)
+    if (!finalBlob) return false
+
+    // Decode the chosen blob so the baked-in pixels match what export will
+    // produce (including lossy artifacts), then adopt as the new base image.
+    const img = await htmlImageFromBlob(finalBlob)
+    if (!hiddenCanvas.value) hiddenCanvas.value = document.createElement('canvas')
+    hiddenCanvas.value.width = img.width
+    hiddenCanvas.value.height = img.height
+    hiddenContext.value = hiddenCanvas.value.getContext('2d', { willReadFrequently: true })
+    hiddenContext.value?.drawImage(img, 0, 0)
+    originalImage.value = img
+    currentRotationAngle.value = 0
+    hiddenCanvasWidth.value = img.width
+    hiddenCanvasHeight.value = img.height
+
+    // Cache the EXACT bytes the search produced. Download serves these verbatim
+    // (when the export format matches `fmt`), so the file is exactly this size.
+    exportBlob.value = finalBlob
+    exportBlobFormat.value = fmt
+
+    await updatePreviewFromHiddenCanvas()
+    return true
   }
 
   const exportImage = async (format: string = 'image/png', quality: number = 1): Promise<Blob | null> => {
     if (!hiddenCanvas.value) return null
 
-    // Export directly from hidden canvas (which has original quality)
-    return new Promise((resolve) => {
-      hiddenCanvas.value!.toBlob(
-        (blob) => resolve(blob),
-        format,
-        quality
-      )
-    })
+    const fmt = toEncodeFormat(format)
+
+    // If a target-file-size operation produced exact bytes in this same format,
+    // hand them back unchanged — re-encoding would shift the size.
+    if (exportBlob.value && exportBlobFormat.value === fmt) {
+      return exportBlob.value
+    }
+
+    // Otherwise encode the full-quality hidden canvas through the codec-grade
+    // encoder (jSquash for JPEG/WebP, native for PNG).
+    return encodeCanvas(hiddenCanvas.value, fmt, quality)
   }
 
   const downloadImage = async (filename: string, format: string = 'image/png', quality: number = 1) => {
@@ -915,49 +954,27 @@ export function useImageEditor() {
     const useFormat = format || originalFileFormat.value
     // Use appropriate quality based on format
     const useQuality = quality !== undefined ? quality : (useFormat === 'image/png' ? 1 : 0.92)
-    
-    // Get file size directly from hidden canvas
-    return new Promise((resolve) => {
-      hiddenCanvas.value!.toBlob((blob) => {
-        if (blob) {
-          // Return size in KB
-          resolve(blob.size / 1024)
-        } else {
-          resolve(null)
-        }
-      }, useFormat, useQuality)
-    })
+    const fmt = toEncodeFormat(useFormat)
+
+    // Mirror exportImage: report the cached target-size bytes so the displayed
+    // size matches the downloaded file.
+    if (exportBlob.value && exportBlobFormat.value === fmt) {
+      return exportBlob.value.size / 1024
+    }
+
+    const blob = await encodeCanvas(hiddenCanvas.value, fmt, useQuality)
+    return blob ? blob.size / 1024 : null
   }
 
   const estimateFileSizeForDimensions = async (width: number, height: number, format: string = 'image/png', quality: number = 1): Promise<number | null> => {
     if (!hiddenCanvas.value) return null
-    
-    // Create a temporary canvas at target dimensions
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = Math.round(width)
-    tempCanvas.height = Math.round(height)
-    const ctx = tempCanvas.getContext('2d')
-    
-    if (!ctx) return null
-    
-    // Draw the hidden canvas (original quality) scaled to target dimensions
-    ctx.drawImage(
-      hiddenCanvas.value,
-      0,
-      0,
-      tempCanvas.width,
-      tempCanvas.height
-    )
-    
-    return new Promise((resolve) => {
-      tempCanvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob.size / 1024)
-        } else {
-          resolve(null)
-        }
-      }, format, quality)
-    })
+
+    // Estimates use the fast native-draw scale (not pica) — accuracy of the
+    // size comes from the encoder, not the resampler, and estimates are called
+    // repeatedly during binary search where speed matters.
+    const scaled = drawScaledCanvas(hiddenCanvas.value, clampToPositiveInt(width), clampToPositiveInt(height))
+    const blob = await encodeCanvas(scaled, toEncodeFormat(format), quality)
+    return blob ? blob.size / 1024 : null
   }
 
   const estimateDimensionsForFileSize = async (targetKB: number, format: string = 'image/jpeg'): Promise<ImageDimensions | null> => {
@@ -1034,6 +1051,7 @@ export function useImageEditor() {
     resizeToFileSize,
     exportImage,
     downloadImage,
+    invalidateExportBlob,
     reset,
     getCurrentDimensions,
     getCurrentFileSize,
